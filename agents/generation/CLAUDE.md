@@ -39,6 +39,8 @@ Do not flatten category directories out of `problem_id`. A problem in `data/alge
 
 Reference directories are problem-specific. For `data/algebra/modrep.md`, the associated reference directory is `data/algebra/modrep.refs/`. Supported direct reference files include `.md`, `.tex`, and `.txt`. PDF references are pre-extracted by the runner into `.txt` files under `reference_dir/.extracted/`; read those extracted text files instead of trying to inspect PDF binaries. These files are user-provided context, not verified facts; cite them in memory records and proof steps when they influence the proof.
 
+A per-problem **glossary file** may exist at `data/{problem_id}.glossary.md` (e.g. `data/algebra/modrep.glossary.md` for the `algebra/modrep` problem). If it exists, read every entry on init and seed the `notation_dictionary` memory channel from it using `$align-with-source-notation` — each glossary entry becomes one dictionary record with `source: "glossary"`. Glossary entries are authoritative; never silently override them.
+
 
 ## Required Memory Policy
 
@@ -61,6 +63,7 @@ Use append-only channels (except `meta.json`):
 - `failed_paths`
 - `verification_reports`
 - `branch_states`
+- `notation_dictionary`
 - `events`
 
 ## Adaptive Control Loop
@@ -113,14 +116,27 @@ Do not decide a fixed order of skill usage before tackling the problem. Choose s
   - you need several materially different ways to break the theorem into subgoals
 - Use `$direct-proving` when:
   - one or more decomposition plans are created.
+- Use `$enforce-step-granularity` when:
+  - you are writing or revising any proof step that displays a claim
+  - `$direct-proving` or `$recursive-proving` is about to commit a transition between displayed claims to `blueprint.md`
+  - you are repairing a gap, banned-phrase warning, or untagged claim flagged by the verifier or by `$self-audit`
+- Use `$align-with-source-notation` when:
+  - a `data/{problem_id}.glossary.md` file exists and needs to be seeded into `notation_dictionary` on init
+  - you are about to invoke an external result and need to copy its notation verbatim into the proof
+  - you are introducing a new local symbol or making a local renaming declaration
+  - `$check-notation-consistency` (verifier-side) flagged drift, undefined symbols, or silent renamings
 - Use `$recursive-proving` when:
   - all current decomposition plans have been attempted with `$direct-proving`
   - none of them fully solved the problem
   - you have identified key stuck points for each plan and want one sub-agent to work on each plan in parallel
 - Use `$identify-key-failures` when:
   - recursive attempts on the current decomposition plans all failed
+- Use `$self-audit` when:
+  - a full candidate proof of the entire problem has been assembled in `blueprint.md`
+  - you are about to call `$verify-proof` (`$self-audit` must pass first; this is a hard gate)
+  - you have edited `blueprint.md` since the last passing self-audit (the audit is invalidated and must be re-run)
 - Use `$verify-proof` when:
-  - a full candidate proof of the entire problem has been assembled and you want to check it
+  - `$self-audit` has returned `audit_pass=true` for the current `blueprint.md` state and you want the canonical verification service to check it
 
 
 
@@ -158,6 +174,59 @@ If a family of decomposition plans repeatedly fails, use `$identify-key-failures
 ### Step 4: Stopping rules
 
 Stop only when the blueprint passes verification and the verified markdown proof has been published as `blueprint_verified.md`.
+
+## Proof Writing Discipline
+
+This section governs how every proof step is written into `blueprint.md`. It is mandatory; `$self-audit` enforces it before `$verify-proof` is allowed to call the verification service, and the verifier independently re-checks every rule.
+
+### Justification tag taxonomy
+
+Every displayed claim in the proof must end with exactly one inline justification tag from this fixed set:
+
+- `[def: name]` — by a stated definition (must appear in `## Notation` or earlier in the proof).
+- `[hyp]` — by a hypothesis from the problem statement or a clearly scoped local assumption.
+- `[calc N]` — by a numbered computation display labeled `(N)` above this line.
+- `[cite: paper_id, thm_id]` — by an external result. The full statement and source identifiers (paper_id, theorem_id, arXiv id) must appear nearby in the proof.
+- `[from L.X]` or `[from L.X, Eq.Y]` — by a previously proved local lemma/proposition X (optionally a specific equation Y inside it).
+- `[wlog: reason]` — without loss of generality, with a one-clause reason.
+- `[ind: name]` — by the named induction hypothesis.
+- `[comp]` — by composition.
+- `[functoriality]` — by functoriality of a named functor.
+- `[naturality]` — by naturality of a named transformation.
+
+No other tag labels are accepted. No claim may be untagged. Tags must resolve.
+
+### Step granularity rule
+
+Every transition between displayed claims must be exactly one atomic move from the taxonomy above. Compound transitions (more than one atomic move chained together) must be split into multiple displayed intermediate claims, each with its own tag. `$enforce-step-granularity` is the operational version of this rule and must be invoked whenever a transition is being committed.
+
+Chained equalities $a = b = c = d$ are allowed *inside* a single numbered computation display, but each `=` step carries its own inline tag.
+
+### Banned phrases
+
+The following phrases, appearing in `blueprint.md` without an immediately-following resolved tag, are critical errors — they always signal an unstated transition:
+
+"clearly", "obviously", "trivially", "it follows that" (without an immediately-following `[from ...]` or `[cite: ...]`), "by symmetry" (without an immediately-following `[from ...]`), "by a standard argument", "as usual", "we omit the details", "it is easy to see that" (without an immediately-following tag).
+
+If any of these appears, the transition must be split and tagged using `$enforce-step-granularity`.
+
+### Verbatim notation rule
+
+When a result is cited from a source paper, the proof must use the source's exact symbols and names. If a local rename is unavoidable, an explicit one-sentence renaming declaration must appear in the proof and a corresponding entry must be appended to `notation_dictionary` with `source: "self-renaming from paper_id, ..."`. Silent renamings are critical errors.
+
+Every symbol used anywhere in the proof must appear in `notation_dictionary`. `$align-with-source-notation` is the operational version of this rule.
+
+### Notation section in the blueprint
+
+The blueprint must contain a `## Notation` section near the top (after the title, before the first lemma) that lists every entry in `notation_dictionary`. The verifier reads this section to perform `$check-notation-consistency`; if it is missing or stale, the audit fails.
+
+### Display every nontrivial computation
+
+Every nontrivial computation must be *displayed* in a numbered environment, not concluded inline. Conclusion-only computations (e.g., "Thus $T(\eta) = 0$" without a displayed derivation) are critical errors caught by the verifier's `$check-computational-replay`.
+
+### Self-audit gate
+
+`$verify-proof` may not call `verify_proof_service` until `$self-audit` returns `audit_pass=true` for the current `blueprint.md` state. Any edit to `blueprint.md` after a passing audit invalidates that audit; re-run `$self-audit` before re-invoking `$verify-proof`. This is a hard control-flow gate.
 
 ## Hard Invariants
 

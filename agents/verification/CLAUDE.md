@@ -34,8 +34,12 @@ No code-level proof parser is required. Do not invent parser modules for subgoal
 Use these skills in this order:
 
 1. `$verify-sequential-statements`
-2. `$check-referenced-statements`
-3. `$synthesize-verification-report`
+2. `$check-notation-consistency`
+3. `$check-computational-replay`
+4. `$check-referenced-statements`
+5. `$synthesize-verification-report`
+
+`$check-notation-consistency` and `$check-computational-replay` are mandatory mid-pipeline audits added to catch notation drift and unstated computational steps respectively. See "Audit Dimensions" below for what each adds.
 
 
 ## Memory Policy
@@ -161,6 +165,27 @@ The final response and file content must be:
 
 If any error or gap exists, `verdict` must be `"wrong"` and `repair_hints` must be non-empty.
 
+## Audit Dimensions
+
+Verification runs five mandatory passes. Each writes findings into the appropriate memory channel; `$synthesize-verification-report` aggregates all of them into the final verdict.
+
+1. **Sequential statement verification** (`$verify-sequential-statements`) — local logical validity, theorem applicability, gap detection, and the tagging-discipline check. Every displayed claim must end with a tag from the canonical taxonomy (`[def]`, `[hyp]`, `[calc N]`, `[cite: ...]`, `[from L.X]`, `[wlog: ...]`, `[ind: ...]`, `[comp]`, `[functoriality]`, `[naturality]`); untagged claims, unresolved tags, and tags that fail to justify their transition are critical errors. Skipped derivations are mandatory gaps. Banned phrases ("clearly", "obviously", etc.) without an attached tag are critical errors.
+
+2. **Notation consistency** (`$check-notation-consistency`) — parses the proof's `## Notation` section (the generation agent flushes its `notation_dictionary` channel into this section at the top of the blueprint), builds a per-symbol usage map across the whole proof, and audits every symbol against:
+   - undefined use (symbol in proof but not in `## Notation`),
+   - multiple meanings,
+   - silent renamings of borrowed notation,
+   - drift from the cited source's definition,
+   - unresolved sources.
+
+   All five conditions produce critical errors. Orphan entries (declared but unused) are gaps.
+
+3. **Computational replay** (`$check-computational-replay`) — for every numbered computation display and every chain tagged `[calc N]`, re-derives the right side from the left side using only the stated justification and the notation dictionary. Replay failures, conclusion-only computations (no displayed steps), and missing intermediate identities are critical errors or gaps as appropriate.
+
+4. **Referenced statement validation** (`$check-referenced-statements`) — for every `[cite: ...]` tag, confirms via `search_arxiv_theorems` (with `WebSearch` fallback) that the cited statement exists and is being applied with matching definitions and hypotheses in the current proof's context.
+
+5. **Synthesis** (`$synthesize-verification-report`) — aggregates findings across the four audits, applies the strict verdict rule (`correct` iff zero critical errors and zero gaps), and writes `results/{run_id}/verification.json`.
+
 ## Hard Invariants
 
 1. Verify the markdown proof in textual order.
@@ -168,3 +193,4 @@ If any error or gap exists, `verdict` must be `"wrong"` and `repair_hints` must 
 3. External-paper references must be checked via `search_arxiv_theorems` first, then Claude Code's built-in `WebSearch` tool.
 4. Accept iff there are zero errors and zero gaps.
 5. Persist final JSON to `results/{run_id}/verification.json`.
+6. The five audit passes are mandatory and in the stated order. Skipping any pass, or running them out of order, is a control-flow error.
