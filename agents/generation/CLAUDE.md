@@ -44,11 +44,25 @@ A per-problem **glossary file** may exist at `data/{problem_id}.glossary.md` (e.
 
 ## Required Memory Policy
 
-All intermediate reasoning artifacts must be persisted in `memory/{problem_id}/` using MCP tools (`memory_init`, `memory_append`, `memory_search`, `branch_update`).
+All intermediate reasoning artifacts must be persisted in `memory/{problem_id}/` using MCP tools (`memory_init`, `memory_append`, `memory_query`, `memory_search`, `branch_update`).
 
 Initialize memory before any reasoning:
 
 - call `memory_init(problem_id=problem_id, meta=...)`
+
+`memory_init` allocates the channel JSONL files, seeds (or merges) `meta.json`, and ensures a `budget` object is present in `meta.json`. The default budget is:
+
+```json
+{
+  "max_wall_seconds": 28800,
+  "max_recursive_rounds": 5,
+  "max_verifier_calls": 8,
+  "max_external_papers": 40,
+  "on_budget_exhausted": "write_partial_progress_report"
+}
+```
+
+Override any field by passing `meta={"budget": {"max_wall_seconds": ...}}` when initializing. When any budget dimension is exhausted, follow `on_budget_exhausted`: invoke the MCP tool `write_partial_progress_report(problem_id, summary_markdown, reason, next_recommendations)` with a structured summary of progress, failed paths, and the next branches you would try. Budget exhaustion is **not** the same as failure — partial progress reports record where you got and what to try next; never claim the proof failed simply because the budget ran out.
 
 For MCP memory tools, use the same data-relative `problem_id`.
 
@@ -144,8 +158,9 @@ Do not decide a fixed order of skill usage before tackling the problem. Choose s
 
 After invoking any skill:
 
-1. Persist produced artifacts to the correct channel(s) with `memory_append` using `problem_id=problem_id`.
+1. Persist produced artifacts to the correct channel(s) with `memory_append` using `problem_id=problem_id`. **Always pass `agent_id` (your own identifier), `skill` (the name of the skill you are currently executing), and `branch_id` / `plan_id` / `attempt_id` whenever these are known.** When running as a sub-agent invoked via `$recursive-proving`, also pass `parent_agent_id`. These stamps are essential for reconstructing which sub-agent produced which fragment when the parent assembles the final blueprint.
 2. Update branch state with `branch_update` when a choice is made or backtracking happens.
+3. **Prefer `memory_query` over `memory_search` for control-flow decisions.** `memory_query` accepts exact `filters` (e.g. `{"record.audit_pass": true, "blueprint_sha256": "..."}`), `contains` substring matching, `limit`, and `reverse=true`. Use it for: most recent self_audit, most recent verifier_response, all failed_paths for a `plan_id`, all notation_dictionary entries for a symbol, branch state by `branch_id`. Reserve `memory_search` (BM25 over JSONL) for fuzzy *discovery*, not for control-flow gates.
 3. When a branch dies, append to `failed_paths` with a concrete reason and evidence.
 4. When you propose decomposition plans or identify stuck points, persist them clearly so later skills and sub-agents can reuse them.
 5. If a proof step uses an external result from search tools, record the complete statement and its source identifiers in the proof step itself:
@@ -276,10 +291,12 @@ Use these tools when relevant:
 
 - `search_arxiv_theorems`
 - `memory_init`
-- `memory_append`
-- `memory_search`
+- `memory_append` (stamp `agent_id`, `skill`, `branch_id`, `plan_id`, `attempt_id`, `parent_agent_id` whenever known)
+- `memory_query` (exact filters; use for control-flow gates)
+- `memory_search` (BM25; use for fuzzy discovery)
 - `branch_update`
 - `verify_proof_service`
+- `write_partial_progress_report` (when any budget dimension in `meta.json` is exhausted)
 
 Always call `search_arxiv_theorems` for nontrivial subgoals and key claims to ground reasoning in related literature.
 Use Claude Code's built-in `WebSearch` tool early to gather background (terminology, standard lemmas, common techniques) and throughout when constructing examples/counterexamples or proving subgoals.

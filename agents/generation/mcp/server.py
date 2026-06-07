@@ -258,6 +258,15 @@ def verify_proof_service(
     }
 
 
+DEFAULT_BUDGET: Dict[str, Any] = {
+    "max_wall_seconds": 28800,
+    "max_recursive_rounds": 5,
+    "max_verifier_calls": 8,
+    "max_external_papers": 40,
+    "on_budget_exhausted": "write_partial_progress_report",
+}
+
+
 def memory_init(
     problem_id: str,
     meta: Optional[Dict[str, Any]] = None,
@@ -289,6 +298,15 @@ def memory_init(
     if meta:
         merged_meta.update(meta)
 
+    incoming_budget = (meta or {}).get("budget") if meta else None
+    existing_budget = existing_meta.get("budget")
+    merged_budget = dict(DEFAULT_BUDGET)
+    if isinstance(existing_budget, dict):
+        merged_budget.update(existing_budget)
+    if isinstance(incoming_budget, dict):
+        merged_budget.update(incoming_budget)
+    merged_meta["budget"] = merged_budget
+
     with meta_path.open("w", encoding="utf-8") as handle:
         json.dump(merged_meta, handle, indent=2, ensure_ascii=False)
 
@@ -297,6 +315,7 @@ def memory_init(
         "memory_dir": str(problem_dir),
         "meta_path": str(meta_path),
         "channels": created_files,
+        "budget": merged_budget,
     }
 
 
@@ -304,26 +323,54 @@ def memory_append(
     problem_id: str,
     channel: str,
     record: Dict[str, Any],
+    agent_id: Optional[str] = None,
+    parent_agent_id: Optional[str] = None,
+    skill: Optional[str] = None,
+    branch_id: Optional[str] = None,
+    plan_id: Optional[str] = None,
+    attempt_id: Optional[str] = None,
+    blueprint_sha256: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not isinstance(record, dict):
         raise ValueError("record must be a JSON object")
 
     memory_init(problem_id)
 
-    entry = {
+    entry: Dict[str, Any] = {
         "timestamp_utc": _utc_now(),
         "channel": channel,
-        "record": record,
     }
+    if agent_id is not None:
+        entry["agent_id"] = agent_id
+    if parent_agent_id is not None:
+        entry["parent_agent_id"] = parent_agent_id
+    if skill is not None:
+        entry["skill"] = skill
+    if branch_id is not None:
+        entry["branch_id"] = branch_id
+    if plan_id is not None:
+        entry["plan_id"] = plan_id
+    if attempt_id is not None:
+        entry["attempt_id"] = attempt_id
+    if blueprint_sha256 is not None:
+        entry["blueprint_sha256"] = blueprint_sha256
+    entry["record"] = record
+
     target = _channel_path(problem_id, channel)
     _append_jsonl(target, entry)
 
     if channel != "events":
-        event_entry = {
+        event_entry: Dict[str, Any] = {
             "timestamp_utc": _utc_now(),
             "event_type": "memory_append",
             "channel": channel,
         }
+        if agent_id is not None:
+            event_entry["agent_id"] = agent_id
+        if branch_id is not None:
+            event_entry["branch_id"] = branch_id
+        if attempt_id is not None:
+            event_entry["attempt_id"] = attempt_id
         _append_jsonl(_channel_path(problem_id, "events"), event_entry)
 
     return {
@@ -331,6 +378,99 @@ def memory_append(
         "channel": channel,
         "path": str(target),
         "entry": entry,
+    }
+
+
+def memory_query(
+    problem_id: str,
+    channel: str,
+    filters: Optional[Dict[str, Any]] = None,
+    contains: Optional[str] = None,
+    limit: int = 100,
+    reverse: bool = True,
+) -> Dict[str, Any]:
+    if limit <= 0:
+        raise ValueError("limit must be > 0")
+
+    sanitized_problem_id = sanitize_problem_id(problem_id)
+    path = _channel_path(sanitized_problem_id, channel)
+    items = list(_iter_jsonl(path))
+
+    if filters:
+        filtered: List[Dict[str, Any]] = []
+        for item in items:
+            ok = True
+            for key, value in filters.items():
+                if item.get(key) != value and item.get("record", {}).get(key) != value:
+                    ok = False
+                    break
+            if ok:
+                filtered.append(item)
+        items = filtered
+
+    if contains:
+        needle = contains.lower()
+        items = [item for item in items if needle in json.dumps(item, ensure_ascii=False).lower()]
+
+    if reverse:
+        items = list(reversed(items))
+
+    items = items[:limit]
+    return {
+        "problem_id": sanitized_problem_id,
+        "channel": channel,
+        "count": len(items),
+        "items": items,
+    }
+
+
+def write_partial_progress_report(
+    problem_id: str,
+    summary_markdown: str,
+    reason: str = "budget_exhausted",
+    next_recommendations: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    if not isinstance(summary_markdown, str) or not summary_markdown.strip():
+        raise ValueError("summary_markdown must be a non-empty string")
+
+    sanitized_problem_id = sanitize_problem_id(problem_id)
+    results_dir = REPO_ROOT / "results" / sanitized_problem_id
+    results_dir.mkdir(parents=True, exist_ok=True)
+    report_path = results_dir / "partial_progress.md"
+
+    timestamp = _utc_now()
+    header = (
+        f"# Partial progress report\n\n"
+        f"- problem_id: `{sanitized_problem_id}`\n"
+        f"- written_at_utc: `{timestamp}`\n"
+        f"- reason: `{reason}`\n"
+    )
+    if next_recommendations:
+        rec_body = "\n".join(f"- {rec}" for rec in next_recommendations)
+        next_section = f"\n## Next recommended branches\n\n{rec_body}\n"
+    else:
+        next_section = ""
+
+    body = f"{header}\n## Summary\n\n{summary_markdown.strip()}\n{next_section}"
+    report_path.write_text(body, encoding="utf-8")
+
+    memory_append(
+        problem_id=sanitized_problem_id,
+        channel="events",
+        record={
+            "event_type": "partial_progress_report_written",
+            "reason": reason,
+            "report_path": str(report_path),
+            "has_next_recommendations": bool(next_recommendations),
+        },
+    )
+
+    return {
+        "status": "ok",
+        "problem_id": sanitized_problem_id,
+        "report_path": str(report_path),
+        "written_at_utc": timestamp,
+        "reason": reason,
     }
 
 
@@ -449,8 +589,58 @@ def build_mcp_app() -> Optional[Any]:
         problem_id: str,
         channel: str,
         record: Dict[str, Any],
+        agent_id: Optional[str] = None,
+        parent_agent_id: Optional[str] = None,
+        skill: Optional[str] = None,
+        branch_id: Optional[str] = None,
+        plan_id: Optional[str] = None,
+        attempt_id: Optional[str] = None,
+        blueprint_sha256: Optional[str] = None,
     ) -> Dict[str, Any]:
-        return memory_append(problem_id=problem_id, channel=channel, record=record)
+        return memory_append(
+            problem_id=problem_id,
+            channel=channel,
+            record=record,
+            agent_id=agent_id,
+            parent_agent_id=parent_agent_id,
+            skill=skill,
+            branch_id=branch_id,
+            plan_id=plan_id,
+            attempt_id=attempt_id,
+            blueprint_sha256=blueprint_sha256,
+        )
+
+    @app.tool(name="memory_query")
+    def _tool_memory_query(
+        problem_id: str,
+        channel: str,
+        filters: Optional[Dict[str, Any]] = None,
+        contains: Optional[str] = None,
+        limit: int = 100,
+        reverse: bool = True,
+    ) -> Dict[str, Any]:
+        return memory_query(
+            problem_id=problem_id,
+            channel=channel,
+            filters=filters,
+            contains=contains,
+            limit=limit,
+            reverse=reverse,
+        )
+
+    @app.tool(name="write_partial_progress_report")
+    def _tool_write_partial_progress_report(
+        problem_id: str,
+        summary_markdown: str,
+        reason: str = "budget_exhausted",
+        next_recommendations: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        return write_partial_progress_report(
+            problem_id=problem_id,
+            summary_markdown=summary_markdown,
+            reason=reason,
+            next_recommendations=next_recommendations,
+        )
 
     @app.tool(name="memory_search")
     def _tool_memory_search(
