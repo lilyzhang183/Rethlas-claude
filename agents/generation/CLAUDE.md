@@ -221,9 +221,18 @@ Chained equalities $a = b = c = d$ are allowed *inside* a single numbered comput
 
 The following phrases, appearing in `blueprint.md` without an immediately-following resolved tag, are critical errors — they always signal an unstated transition:
 
-"clearly", "obviously", "trivially", "it follows that" (without an immediately-following `[from ...]` or `[cite: ...]`), "by symmetry" (without an immediately-following `[from ...]`), "by a standard argument", "as usual", "we omit the details", "it is easy to see that" (without an immediately-following tag).
+- "clearly", "obviously", "trivially"
+- "it follows that" (without an immediately-following `[from: ...]` or `[cite: ...]`)
+- "by symmetry" (without an immediately-following `[from: ...]`)
+- "by a standard argument", "by a standard X argument" (for any X)
+- "as usual"
+- "we omit the details", "the proof is standard"
+- "it is easy to see that" (without an immediately-following tag)
+- "an analogous argument shows" (without an immediately-following `[from: ...]` to the analogous lemma)
 
-If any of these appears, the transition must be split and tagged using `$enforce-step-granularity`.
+If "by a standard X argument" appears, the fix is not to add a tag — it is to **create a named local lemma with prefix `Lstd`** (see the Standard-lemma library section), prove it, and then cite it via `[from: Lstd<n>]`. The verifier's `$check-proof-obligation-graph` will trace the dependency through the standard lemma's own node.
+
+If any other banned phrase appears, the transition must be split and tagged using `$enforce-step-granularity`.
 
 ### Three-tier notation rule
 
@@ -288,9 +297,60 @@ Every lemma, proposition, and theorem must begin with a `## Context` block listi
 
 The verifier (`$check-notation-consistency`, `$check-proof-obligation-graph`) uses these context blocks to detect **scope drift** — the failure mode where a proof starts with one neighborhood, later uses a smaller neighborhood, and silently forgets which properties survive shrinking. Every symbol used inside the lemma must be reachable through `## Notation`, the lemma's `## Context` local variables, or the Tier-3 standard whitelist.
 
-### Display every nontrivial computation
+### Display every nontrivial computation (aligned form)
 
-Every nontrivial computation must be *displayed* in a numbered environment, not concluded inline. Conclusion-only computations (e.g., "Thus $T(\eta) = 0$" without a displayed derivation) are critical errors caught by the verifier's `$check-computational-replay`.
+Every nontrivial computation must be displayed in an *aligned* environment with one tag per step. Conclusion-only computations (e.g., "Thus $T(\eta) = 0$" without a displayed derivation) are critical errors caught by the verifier's `$check-computational-replay`.
+
+Required form for any multi-step computation:
+
+```markdown
+\[
+\begin{aligned}
+A
+&= B && [def: D3] \\
+&= C && [from: L2.eq1] \\
+&= 0 && [hyp: H4].
+\end{aligned}
+\tag{E7}
+\]
+
+Therefore $A = 0$. [calc: E7]
+```
+
+Rules:
+
+- Every equality/inequality/congruence step in a displayed computation gets its own inline tag in the second column of the aligned environment.
+- The display is numbered with a `\tag{E<n>}` and referenced in prose by `[calc: E<n>]`.
+- A prose sentence may cite the whole computation only with `[calc: E<n>]`; it may not chain multiple steps inline.
+- No "therefore $A = 0$" unless the display labeled `(E<n>)` actually ends in $A = 0$ (or a cited lemma gives it).
+- Single-step "computations" (one displayed equality with one tag) may use the simpler form $A = B \quad [\text{tag}]$ without the aligned environment.
+
+### Standard-lemma library (replace "by a standard argument")
+
+The phrase "by a standard argument" is banned. If the agent wants to use a standard argument, it must create a named lemma in the blueprint with id prefix `Lstd`. For example:
+
+```markdown
+# Lemma Lstd1: Shrinking preserves saturated-neighborhood containment
+
+## Context
+- Active assumptions: H1.
+- Active definitions: D1, D4.
+- Local variables: $U \supset V$ open subsets of $M$.
+
+## Statement
+If $U \supset V$ are open and $U$ is saturated for $\mathcal{F}$, then so is $V \cap U$.
+
+## Proof
+...
+```
+
+Then any later proof step that would have said "by a standard saturation argument" instead writes:
+
+```markdown
+We use Lemma Lstd1, whose proof is included above. [from: Lstd1]
+```
+
+Standard lemmas may be collected in a per-problem file `results/{problem_id}/standard_lemmas.md` for re-use across attempts on the same problem, but each one used in the final proof must still be cited via a `[from: Lstd<n>]` tag and must appear (either inline or as a transcluded reference) before its first use. There is no privileged status: a `Lstd` lemma is audited identically to any other local lemma — it has a proof-obligation node, must be in `## Context` of any lemma that uses it, and must be acyclic with the rest of the graph.
 
 ### Self-audit gate (multi-hash-anchored)
 

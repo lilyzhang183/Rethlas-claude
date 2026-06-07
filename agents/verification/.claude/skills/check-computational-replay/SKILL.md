@@ -23,10 +23,28 @@ A computation step is any single use of `=`, `\le`, `\ge`, `<`, `>`, `\equiv`, `
 
 - a **left side** (the prior expression),
 - a **right side** (the new expression),
-- a **justification** (the inline tag immediately attached: `[def: name]`, `[from L.X, Eq.Y]`, `[cite: paper_id, thm_id]`, `[hyp: H1]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`, etc.).
+- a **justification** (the inline tag immediately attached: `[def: D<i>]`, `[from: L<x>.eq<y>]`, `[cite: paper_id, thm_id]`, `[hyp: H<i>]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`, etc.).
 
 A display containing $a = b = c = d$ is parsed as three steps:
 $(a = b)$, $(b = c)$, $(c = d)$, each with its own tag.
+
+## Expected aligned form
+
+Multi-step displayed computations are expected in the aligned-equation form, with one tag per step in the second column of the aligned environment:
+
+```latex
+\begin{aligned}
+A
+&= B && [def: D3] \\
+&= C && [from: L2.eq1] \\
+&= 0 && [hyp: H4].
+\end{aligned}
+\tag{E7}
+```
+
+The replay pass parses each aligned row as one step. If the display is *not* in aligned form (e.g. a single long line `$A = B = C = 0$ [from: L2]` with a single tag covering all transitions), classify every implicit step as `needs_intermediate` (`gap`) for the steps the tag does not actually justify. Generation should rewrite into aligned form; verifier should not silently accept compressed multi-step chains.
+
+Single-step displayed equalities (one `=`) without an `aligned` environment are accepted as long as they carry one inline tag.
 
 ## Replay-status taxonomy
 

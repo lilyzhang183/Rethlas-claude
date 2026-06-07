@@ -88,12 +88,14 @@ The scope-drift check catches the high-priority failure mode where the lemma's `
 The following phrases, appearing inside the proof text without an immediately-following resolved tag, are critical errors — they signal an unstated transition:
 
 - "clearly", "obviously", "trivially"
-- "it follows that", "it is easy to see that" (without an immediately-following `[from ...]` or `[cite: ...]` tag on the same line)
-- "by symmetry" (without an immediately-following `[from ...]` tag naming the symmetry)
-- "by a standard argument", "as usual"
+- "it follows that", "it is easy to see that" (without an immediately-following `[from: ...]` or `[cite: ...]` tag on the same line)
+- "by symmetry" (without an immediately-following `[from: ...]` tag naming the symmetry)
+- "by a standard argument", "by a standard X argument" (for any X)
+- "as usual", "the proof is standard"
 - "we omit the details"
+- "an analogous argument shows" (without an immediately-following `[from: ...]` to the analogous lemma)
 
-Record one critical error per occurrence with issue `"banned phrase <phrase> indicates unstated transition"`.
+Record one `critical_error` per occurrence with issue `"banned phrase <phrase> indicates unstated transition"`. The "by a standard X argument" family is especially load-bearing: the only acceptable resolution is for the generation agent to create a named local lemma with id prefix `Lstd`, prove it, and cite it via `[from: Lstd<n>]`.
 
 ## Output Contract
 
