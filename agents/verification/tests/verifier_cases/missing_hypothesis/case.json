@@ -1,0 +1,12 @@
+{
+  "name": "missing_hypothesis",
+  "description": "Proof omits a needed hypothesis from the problem statement and never invokes it via [hyp: H<i>]. verify-sequential-statements should emit a gap.",
+  "statement": "Let $G$ be a finite group of prime order $p$. Then $G$ is cyclic.",
+  "proof": "## Notation\n\n- $G$ — a group, source: self, statement.\n- $p$ — a prime number, source: self, statement.\n\n## Assumptions\n\n- H1: $G$ is a finite group.\n- H2: $|G| = p$ where $p$ is prime.\n\n# theorem main\n\n## statement\n\nLet $G$ be a finite group of prime order $p$. Then $G$ is cyclic.\n\n## proof\n\nLet $g \\in G$ with $g \\ne e$. Consider the cyclic subgroup $\\langle g \\rangle$. [def: cyclic subgroup]\n\nBy Lagrange's theorem, $|\\langle g \\rangle|$ divides $|G|$. [cite: standard textbook, Lagrange]\n\nTherefore $|\\langle g \\rangle| = p$ and $\\langle g \\rangle = G$, so $G$ is cyclic. [from L.1]\n",
+  "expected_verdict": "wrong",
+  "expected_issue_substrings": [
+    "H2",
+    "prime"
+  ],
+  "expected_warning_substrings": []
+}

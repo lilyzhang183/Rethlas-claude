@@ -1,0 +1,12 @@
+{
+  "name": "fake_citation",
+  "description": "Proof cites a nonexistent theorem with fabricated arXiv id. check-referenced-statements should fail to resolve the citation and emit a critical_error.",
+  "statement": "Let $M$ be a smooth manifold. Then $M$ admits a Riemannian metric.",
+  "proof": "## Notation\n\n- $M$ — a smooth manifold, source: self, statement.\n\n## Assumptions\n\n- H1: $M$ is a smooth manifold.\n\n# theorem main\n\n## statement\n\nLet $M$ be a smooth manifold. Then $M$ admits a Riemannian metric.\n\n## proof\n\nBy the Generalized Schwartz–Zhukovsky Embedding Theorem [cite: arXiv:9999.99999, Thm 47.3], every smooth manifold embeds isometrically into $\\mathbb{R}^N$ for some $N$. [cite: arXiv:9999.99999, Thm 47.3]\n\nPulling back the standard metric on $\\mathbb{R}^N$ yields a Riemannian metric on $M$. [from L.1]\n",
+  "expected_verdict": "wrong",
+  "expected_issue_substrings": [
+    "9999.99999",
+    "not found"
+  ],
+  "expected_warning_substrings": []
+}

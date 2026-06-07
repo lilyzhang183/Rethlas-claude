@@ -1,0 +1,12 @@
+{
+  "name": "notation_drift",
+  "description": "Proof uses the same symbol with two different meanings without a renaming declaration. check-notation-consistency should flag multiple_meanings as a critical_error.",
+  "statement": "Let $f: \\mathbb{R} \\to \\mathbb{R}$ be continuous. Then $f$ attains its maximum on $[0, 1]$.",
+  "proof": "## Notation\n\n- $f$ — a continuous real-valued function on $\\mathbb{R}$, source: self, statement.\n- $x_0$ — the maximizing point on $[0, 1]$, source: self, Definition below.\n\n## Assumptions\n\n- H1: $f: \\mathbb{R} \\to \\mathbb{R}$ is continuous.\n\n# theorem main\n\n## statement\n\nLet $f: \\mathbb{R} \\to \\mathbb{R}$ be continuous. Then $f$ attains its maximum on $[0, 1]$.\n\n## proof\n\nSince $[0, 1]$ is compact and $f$ is continuous, the image $f([0, 1])$ is compact. [cite: Rudin PMA, Thm 4.14]\n\nLet $f$ denote the supremum of $f([0, 1])$; this is finite. [def: supremum]\n\nThere exists $x_0 \\in [0, 1]$ with $f(x_0) = f$. [from L.1]\n",
+  "expected_verdict": "wrong",
+  "expected_issue_substrings": [
+    "$f$",
+    "two"
+  ],
+  "expected_warning_substrings": []
+}

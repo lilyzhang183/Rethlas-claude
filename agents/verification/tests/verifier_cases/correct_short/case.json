@@ -1,0 +1,9 @@
+{
+  "name": "correct_short",
+  "description": "A trivially correct proof with full notation, assumptions, and tagged claims. Verifier should accept.",
+  "statement": "Let $n \\in \\mathbb{N}$. If $n$ is even, then $n + 2$ is even.",
+  "proof": "## Notation\n\n- $n$ — a natural number, source: self, statement of the theorem.\n\n## Assumptions\n\n- H1: $n \\in \\mathbb{N}$.\n- H2: $n$ is even.\n\n# theorem main\n\n## statement\n\nLet $n \\in \\mathbb{N}$. If $n$ is even, then $n + 2$ is even.\n\n## proof\n\nBy H2, there exists $k \\in \\mathbb{N}$ such that $n = 2k$. [hyp: H2]\n\nThen $n + 2 = 2k + 2 = 2(k + 1)$. [calc 1]\n\nSince $k + 1 \\in \\mathbb{N}$, $n + 2$ is twice a natural number, so $n + 2$ is even. [def: even]\n\n(1) $n + 2 = 2k + 2 = 2(k+1)$.\n",
+  "expected_verdict": "correct",
+  "expected_issue_substrings": [],
+  "expected_warning_substrings": []
+}

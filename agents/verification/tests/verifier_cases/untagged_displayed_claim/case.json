@@ -1,0 +1,12 @@
+{
+  "name": "untagged_displayed_claim",
+  "description": "Proof omits the inline justification tag on one displayed claim. verify-sequential-statements should emit a critical_error for the missing tag.",
+  "statement": "If $a$ and $b$ are positive reals, then $a + b > 0$.",
+  "proof": "## Notation\n\n- $a$ — a positive real, source: self, statement.\n- $b$ — a positive real, source: self, statement.\n\n## Assumptions\n\n- H1: $a > 0$.\n- H2: $b > 0$.\n\n# theorem main\n\n## statement\n\nIf $a$ and $b$ are positive reals, then $a + b > 0$.\n\n## proof\n\nBy H1 and H2, both $a$ and $b$ are positive. [hyp: H1]\n\nTherefore $a + b > 0$.\n",
+  "expected_verdict": "wrong",
+  "expected_issue_substrings": [
+    "missing",
+    "tag"
+  ],
+  "expected_warning_substrings": []
+}
