@@ -45,7 +45,9 @@ Read:
    - `verification_report.gaps` is non-empty
 9. Warnings in `verification_report.warnings` do **not** cause failure. Record them for cleanup in a subsequent revision pass, but do not block acceptance over warnings alone.
 10. Only treat the proof as passed when none of the failure conditions above hold.
-11. If the proof passes, rename `results/{problem_id}/blueprint.md` to `results/{problem_id}/blueprint_verified.md`.
+11. If the proof passes, call `publish_terminal_blueprint(problem_id, "verified_correct")` which writes `results/{problem_id}/blueprint_verified.md`. Do not rename `blueprint.md` — `publish_terminal_blueprint` writes a new file alongside it. This preserves the original draft for the audit trail.
+
+12. **Monotone-repair check.** For each `gap` in the verifier response, allocate or update a ticket in the `gap_ledger` channel with `gap_id`, `location`, `issue`, `required_fix`, `status="open"`, and the current `round` number. If the same `gap_id` appears for the third time without any prior round closing it, set `status="blocked"`, set `blocking_reason` to a one-sentence reason, transition the agent's `mode` to `blocked`, and call `publish_terminal_blueprint(problem_id, "unverified_blocked", summary_markdown=...)`. Do not keep rewriting the same lemma locally — record the missing lemma as a new entry in `subgoals` and a `failed_paths` entry for the strategy used, then stop.
 
 ## Hard Invariants
 

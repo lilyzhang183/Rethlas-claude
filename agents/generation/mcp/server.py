@@ -39,8 +39,25 @@ CHANNEL_FILES: Dict[str, str] = {
     "verification_reports": "verification_reports.jsonl",
     "branch_states": "branch_states.jsonl",
     "notation_dictionary": "notation_dictionary.jsonl",
+    "gap_ledger": "gap_ledger.jsonl",
+    "fragile_claims": "fragile_claims.jsonl",
     "events": "events.jsonl",
 }
+
+TERMINAL_STATES = (
+    "verified_correct",
+    "unverified_blocked",
+    "unverified_budget_exhausted",
+    "unverified_partial_progress",
+)
+
+ACCURACY_MODES = (
+    "exploration",
+    "assembly",
+    "rigor",
+    "verification",
+    "blocked",
+)
 
 
 def _utc_now() -> str:
@@ -467,6 +484,75 @@ def memory_query(
     }
 
 
+def publish_terminal_blueprint(
+    problem_id: str,
+    terminal_state: str,
+    summary_markdown: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Materialize the appropriate terminal blueprint file based on `terminal_state`.
+
+    Only `verified_correct` may produce `blueprint_verified.md`. The other terminal
+    states publish stable companion files so the run's outcome is visible at the
+    filesystem level without ever overloading the verified filename.
+    """
+    if terminal_state not in TERMINAL_STATES:
+        raise ValueError(
+            f"terminal_state must be one of {TERMINAL_STATES!r}, got {terminal_state!r}"
+        )
+    sanitized_problem_id = sanitize_problem_id(problem_id)
+    results_dir = REPO_ROOT / "results" / sanitized_problem_id
+    results_dir.mkdir(parents=True, exist_ok=True)
+    blueprint_path = results_dir / "blueprint.md"
+
+    target_by_state = {
+        "verified_correct": "blueprint_verified.md",
+        "unverified_blocked": "blueprint_blocked.md",
+        "unverified_budget_exhausted": "blueprint_partial.md",
+        "unverified_partial_progress": "blueprint_partial.md",
+    }
+    target_filename = target_by_state[terminal_state]
+    target_path = results_dir / target_filename
+
+    if not blueprint_path.exists():
+        raise FileNotFoundError(
+            f"blueprint.md missing at {blueprint_path}; cannot publish terminal blueprint"
+        )
+
+    content = blueprint_path.read_text(encoding="utf-8")
+    timestamp = _utc_now()
+    header = (
+        f"<!-- terminal_state: {terminal_state} -->\n"
+        f"<!-- problem_id: {sanitized_problem_id} -->\n"
+        f"<!-- published_at_utc: {timestamp} -->\n\n"
+    )
+    if terminal_state != "verified_correct" and summary_markdown:
+        body = (
+            f"{header}{content}\n\n## Terminal state notes\n\n{summary_markdown.strip()}\n"
+        )
+    else:
+        body = f"{header}{content}"
+    target_path.write_text(body, encoding="utf-8")
+
+    memory_append(
+        problem_id=sanitized_problem_id,
+        channel="events",
+        record={
+            "event_type": "terminal_blueprint_published",
+            "terminal_state": terminal_state,
+            "target_path": str(target_path),
+            "blueprint_path": str(blueprint_path),
+        },
+    )
+    return {
+        "status": "ok",
+        "problem_id": sanitized_problem_id,
+        "terminal_state": terminal_state,
+        "target_path": str(target_path),
+        "blueprint_path": str(blueprint_path),
+        "published_at_utc": timestamp,
+    }
+
+
 def write_partial_progress_report(
     problem_id: str,
     summary_markdown: str,
@@ -699,6 +785,18 @@ def build_mcp_app() -> Optional[Any]:
             summary_markdown=summary_markdown,
             reason=reason,
             next_recommendations=next_recommendations,
+        )
+
+    @app.tool(name="publish_terminal_blueprint")
+    def _tool_publish_terminal_blueprint(
+        problem_id: str,
+        terminal_state: str,
+        summary_markdown: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return publish_terminal_blueprint(
+            problem_id=problem_id,
+            terminal_state=terminal_state,
+            summary_markdown=summary_markdown,
         )
 
     @app.tool(name="memory_search")

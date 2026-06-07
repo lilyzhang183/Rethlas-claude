@@ -186,9 +186,19 @@ If extensive searching fails to uncover useful information, do not stall on furt
 If a family of decomposition plans repeatedly fails, use `$identify-key-failures` to summarize the common stuck points, store them in `failed_paths`, and then propose a new generation of decomposition plans.
 
 
-### Step 4: Stopping rules
+### Step 4: Stopping rules — four terminal states
 
-Stop only when the blueprint passes verification and the verified markdown proof has been published as `blueprint_verified.md`.
+A run ends in exactly one of four explicit terminal states. Only the first publishes a verified proof; the other three publish stable companion files so the run's outcome is honest at the filesystem level.
+
+- **`verified_correct`** — Verifier returned `verdict=correct` with empty `critical_errors` and `gaps`; the `verified_blueprint_sha256` returned by the service matches `sha256(blueprint.md)`. Action: call `publish_terminal_blueprint(problem_id, "verified_correct")`, which writes `results/{problem_id}/blueprint_verified.md`. This is the only path to a verified proof.
+
+- **`unverified_blocked`** — A gap survived three repair rounds (see Gap Ledger below) without progress, or a structural constraint of the proof-obligation graph cannot be satisfied with current evidence, or a fragile claim's counterexample search produced an obstruction. Action: call `publish_terminal_blueprint(problem_id, "unverified_blocked", summary_markdown=...)`, which writes `results/{problem_id}/blueprint_blocked.md`. The summary names the surviving blocking gap, the strategies tried, and the missing lemma or hypothesis that would unblock progress.
+
+- **`unverified_budget_exhausted`** — A budget dimension in `meta.json` (`max_wall_seconds`, `max_recursive_rounds`, `max_verifier_calls`, `max_external_papers`) was exhausted before a verified verdict was obtained. Action: call `publish_terminal_blueprint(problem_id, "unverified_budget_exhausted", summary_markdown=...)`, which writes `results/{problem_id}/blueprint_partial.md`. Budget exhaustion is **not** failure — record progress and next recommended branches via `write_partial_progress_report`.
+
+- **`unverified_partial_progress`** — The agent voluntarily yields with progress recorded but no verdict (e.g. when handing back to the user for an external decision). Action: call `publish_terminal_blueprint(problem_id, "unverified_partial_progress", summary_markdown=...)`.
+
+Never claim the proof is correct in any state other than `verified_correct`. Never overwrite `blueprint.md` with a terminal companion file — `publish_terminal_blueprint` writes a new file alongside it.
 
 ## Proof Writing Discipline
 
@@ -357,6 +367,48 @@ Standard lemmas may be collected in a per-problem file `results/{problem_id}/sta
 `$verify-proof` may not call `verify_proof_service` until `$self-audit` returns `audit_pass=true` for the current rigor-mode artifact state. "Current state" is defined by **three** hashes: `blueprint_sha256 = sha256(blueprint.md)`, `proof_obligations_sha256 = sha256(proof_obligations.json)`, and `notation_dictionary_sha256 = sha256(notation_dictionary.jsonl)`. All three must match the corresponding fields on the most recent passing `self_audit` record. Any edit to any of those three files invalidates the audit; re-run `$self-audit` before re-invoking `$verify-proof`.
 
 When `$verify-proof` invokes `verify_proof_service`, it must pass `problem_id`, `attempt_id`, `blueprint_sha256`, `proof_obligations_sha256`, `notation_dictionary_sha256`, `self_audit_id`, and the literal content of `proof_obligations.json` so the verification service can run `$check-proof-obligation-graph` over the structural DAG. The verifier writes all three hashes back into `results/{run_id}/metadata.json` and includes `verified_blueprint_sha256` in the response, closing the round-trip.
+
+## Accuracy Modes (sequential progression)
+
+The agent self-declares its current mode in `memory/{problem_id}/meta.json` under the key `mode`. The four modes progress in order; each transition is recorded in `events` as `event_type="mode_transition"`. Skipping a mode (e.g. jumping from `exploration` straight to `verification`) is a critical error caught by `$self-audit`.
+
+- **`exploration`** — sketches, searches, examples, counterexamples, fragile-claim hunting. **May not write `blueprint.md` content other than the title, `## Notation`, `## Assumptions`, `## Definitions`, and exploratory drafts marked `<!-- mode: exploration -->`.** May not call `verify_proof_service`.
+
+- **`assembly`** — writes the candidate blueprint with every claim tagged. Every nontrivial assertion gets a `proof_obligations.json` node (`status: "stub"` is acceptable in this mode). May not call `verify_proof_service`. Transition criterion: every assertion the agent intends to prove has a node and a `proof_location`.
+
+- **`rigor`** — every claim must be in `proof_obligations.json` with `status` in `{proved_in_blueprint, external_citation}` (no `stub` reachable from `MainThm`); every citation has a theorem-application table; every computation is in aligned form; every notation entry is Tier-1/2/3-classified. The DAG is acyclic. `$self-audit` will return `audit_pass=true` only in rigor mode (or later). Transition criterion: `$self-audit` returns `audit_pass=true`.
+
+- **`verification`** — no editing the blueprint except through repair tickets in the `gap_ledger`. `$verify-proof` may be invoked. Transition criterion: a passing `$self-audit` exists for the current triple-hash.
+
+- **`blocked`** — only the `unverified_blocked` terminal path may be taken from here. Set when monotone-repair convergence fails (see Gap Ledger). The agent records the blocking gap and calls `publish_terminal_blueprint(..., "unverified_blocked", ...)`.
+
+Mode order is `exploration → assembly → rigor → verification → (verified_correct | blocked)`. Each transition writes:
+
+```json
+{"event_type": "mode_transition", "from": "<prev>", "to": "<next>", "blueprint_sha256": "..."}
+```
+
+## Gap Ledger (monotone-repair rule)
+
+Every verifier `gap` and every blocking finding from `$self-audit` becomes a repair ticket in the `gap_ledger` memory channel:
+
+```json
+{
+  "gap_id": "GAP-004",
+  "location": "Lemma L5 proof, paragraph 3",
+  "issue": "The proof uses compactness of the orbit but only properness at x was assumed.",
+  "required_fix": "Either prove compactness from H<i> or weaken the step.",
+  "status": "open|addressed|rejected|blocked",
+  "round": 1,
+  "blocking_reason": null
+}
+```
+
+A **repair round** is one cycle of: edit the blueprint → re-run `$self-audit` (if it had failed) → call `verify_proof_service` (if self-audit passes) → read the verifier response → update the ledger.
+
+**Monotone-repair rule.** A repair round is valid only if it closes at least one `open` ticket (`addressed`), or it adds a brand-new subgoal lemma, or it explicitly changes the proof strategy (recorded as a `big_decisions` entry referencing the surviving ticket).
+
+If the same `gap_id` survives three rounds in `status="open"` without progress, mark its `status="blocked"` and set `blocking_reason`. Switch the agent's mode to `blocked` and proceed to `unverified_blocked`. Do not keep rewriting the same lemma locally — record the missing lemma as a new subgoal in `subgoals` or a `failed_path`, and try a different proof strategy on a future run.
 
 ## Rigor Mode: Proof Obligation Discipline
 

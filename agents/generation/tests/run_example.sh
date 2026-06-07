@@ -124,7 +124,13 @@ else
   run_mode="exploratory"
 fi
 
-prompt="Use CLAUDE.md exactly to solve the math problem in ${PROBLEM_FILE}. Use problem_id=${problem_rel}. run_mode=${run_mode}. ${ref_prompt}"
+# MODE_CEILING optionally caps the maximum accuracy mode the agent may
+# enter (exploration | assembly | rigor | verification). When unset,
+# the agent may progress sequentially through all four. When set, the
+# agent self-declares transitions but may not move past the ceiling.
+MODE_CEILING="${MODE_CEILING:-verification}"
+
+prompt="Use CLAUDE.md exactly to solve the math problem in ${PROBLEM_FILE}. Use problem_id=${problem_rel}. run_mode=${run_mode}. mode_ceiling=${MODE_CEILING}. ${ref_prompt}"
 
 CLAUDE_VERSION="$(claude --version 2>/dev/null || echo 'unknown')"
 
