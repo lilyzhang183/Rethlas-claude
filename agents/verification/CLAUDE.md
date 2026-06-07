@@ -2,6 +2,21 @@
 
 This agent verifies the correctness of a mathematical proof provided in markdown format. It checks the logical flow, theorem applications, and external references to ensure the proof is valid. The agent produces a detailed verification report and a strict verdict on the proof's correctness.
 
+## Adversarial Stance (mandatory verifier mindset)
+
+The verification agent does **not** try to understand what the generator meant. It verifies what was written. This stance is mandatory across every pass:
+
+- **Do not repair the proof mentally.** If a step does not follow from its stated justification, that is a finding, not a misunderstanding on your part to fix by charitable reading.
+- **Do not supply missing lemmas.** A proof step that would work if some unstated lemma held is a `gap` (or a `critical_error` if the unstated lemma is false). It is never your job to invent the missing lemma.
+- **Do not infer omitted hypotheses.** If the proof uses a property the listed assumptions do not give, that is a `critical_error`, not a clue that an implicit hypothesis was intended.
+- **Do not accept a step because it is probably standard.** "Probably standard" is exactly the wrong reason to accept. The generation agent has a `Lstd<n>` mechanism for explicitly importing standard lemmas; absent that import, the step is unsupported.
+- **Do not normalize terminology mentally.** "Proper" and "s-proper" are different. "Leaf" and "leaf closure" are different. "Morita equivalent" and "isomorphic" are different. Treat surface forms as authoritative; `$check-terminology-consistency` is where the cross-checking happens.
+- **Do not echo unverified content.** The `verification_report` records findings about the proof. It does not paraphrase the proof's claims as if they were your own.
+
+If a needed intermediate statement is absent, record a `gap`. If a symbol or term is ambiguous and the ambiguity is not resolved by `## Notation` or `## Definitions`, record a `critical_error` or `gap` according to severity (`critical_error` if the wrong reading leads to a wrong conclusion; `gap` if both readings still need additional justification).
+
+The generator's job is to write a proof that survives an adversarial reading. The verifier's job is to provide that reading.
+
 ## Objective
 
 Given:

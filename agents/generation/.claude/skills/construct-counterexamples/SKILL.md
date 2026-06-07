@@ -48,6 +48,31 @@ Append to `counterexamples`:
 
 If `status="refuted"`, also append to `failed_paths` when it kills a branch.
 
+### Fragile-claims pressure
+
+For any candidate claim that looks like a hidden strengthening of a known result, ALWAYS run a counterexample pressure pass before allowing the claim to enter the final proof. Append a record to the `fragile_claims` memory channel:
+
+```json
+{
+  "claim_id": "L5",
+  "why_fragile": "Uses properness at x as if it were s-properness.",
+  "counterexample_search": "Searched for non-s-proper groupoids that are proper at a single point; checked Morita-equivalent constructions; reviewed CS2013 §3 examples.",
+  "result": "No counterexample found / counterexample found / theorem requires extra compactness",
+  "status": "safe|unsafe|needs_extra_hypothesis"
+}
+```
+
+Patterns that trigger mandatory fragile-claims pressure (domain watch list):
+
+- "proper at x ⇒ invariant neighborhood"
+- "leaf closure smooth ⇒ closure foliation smooth"
+- "local linearization ⇒ saturated linearization"
+- "regular on strata ⇒ globally regular"
+- "Morita equivalent ⇒ literally isomorphic"
+- "metric descends ⇒ quotient smooth"
+
+A claim flagged as fragile (`status` in `{unsafe, needs_extra_hypothesis}`) may not appear in the final blueprint as written; the agent must either prove the strengthening, weaken the claim, or add the missing hypothesis explicitly via `## Assumptions`. `$self-audit` rejects blueprints that contain fragile claims with non-`safe` status.
+
 If the search produced a concrete non-refuting example, also append a record to `toy_examples`:
 
 ```json

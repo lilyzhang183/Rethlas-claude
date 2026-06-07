@@ -18,7 +18,7 @@ Read:
 
 ## Audit Checklist
 
-The audit consists of twelve checks. Each check emits findings at the appropriate severity. The overall audit passes iff zero critical_errors **and** zero gaps; warnings do not block.
+The audit consists of fourteen checks (Checks 1, 1b, 1c, 2, 3 … 11, 11b, 12). Each check emits findings at the appropriate severity. The overall audit passes iff zero critical_errors **and** zero gaps; warnings do not block.
 
 ### Check 1: Three-tier notation coverage
 
@@ -116,6 +116,16 @@ Record all three in the audit output. The `$verify-proof` skill will pass them t
 Every Tier-1 (`scope=global`) entry in `notation_dictionary` must appear as a bullet in `## Notation`, and vice versa. Tier-2 (`scope=local`) entries appear in the dictionary for the parent agent's bookkeeping but are not flushed to `## Notation`. Tier-3 (`scope=standard`) entries from the glossary `# Standard Constants` extend the whitelist and may be silently omitted from `## Notation`.
 
 **Severity:** Tier-1 entry in dictionary missing from `## Notation`, or vice versa → `critical_error`.
+
+### Check 11b: Fragile claims have status="safe"
+
+Query the `fragile_claims` memory channel. For every recorded fragile claim whose `claim_id` corresponds to a node currently used in the final blueprint (reachable from `MainThm` in the proof-obligation graph):
+
+- `status="safe"` → pass.
+- `status="needs_extra_hypothesis"` → `critical_error` at the claim's `proof_location` with issue `"fragile claim used without resolving the required extra hypothesis; either add the hypothesis to ## Assumptions, weaken the claim, or replace the proof step"`.
+- `status="unsafe"` → `critical_error` with issue `"fragile claim refuted by counterexample search and still in the final blueprint"`.
+
+This check prevents the high-priority failure mode where a hidden strengthening (e.g. treating "proper at x" as "s-proper") enters the final proof unannotated.
 
 ### Check 12: Proof-obligation graph is structurally valid
 
