@@ -208,6 +208,10 @@ def verify_proof_service(
     proof: str,
     endpoint: str = VERIFY_PROOF_URL,
     timeout_seconds: int = 3600,
+    problem_id: Optional[str] = None,
+    attempt_id: Optional[str] = None,
+    blueprint_sha256: Optional[str] = None,
+    self_audit_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not statement.strip():
         raise ValueError("statement must be non-empty")
@@ -216,10 +220,18 @@ def verify_proof_service(
     if not proof.strip():
         raise ValueError("proof markdown must be non-empty")
 
-    payload = {
+    payload: Dict[str, Any] = {
         "statement": statement,
         "proof": proof,
     }
+    if problem_id is not None:
+        payload["problem_id"] = problem_id
+    if attempt_id is not None:
+        payload["attempt_id"] = attempt_id
+    if blueprint_sha256 is not None:
+        payload["blueprint_sha256"] = blueprint_sha256
+    if self_audit_id is not None:
+        payload["self_audit_id"] = self_audit_id
 
     response = requests.post(endpoint, json=payload, timeout=timeout_seconds)
     response.raise_for_status()
@@ -238,6 +250,11 @@ def verify_proof_service(
         "verdict": body.get("verdict"),
         "repair_hints": body.get("repair_hints"),
         "endpoint": endpoint,
+        "run_id": body.get("run_id"),
+        "log_path": body.get("log_path"),
+        "request_path": body.get("request_path"),
+        "verification_path": body.get("verification_path"),
+        "metadata": body.get("metadata"),
     }
 
 
@@ -406,8 +423,19 @@ def build_mcp_app() -> Optional[Any]:
     def _tool_verify_proof_service(
         statement: str,
         proof: str,
+        problem_id: Optional[str] = None,
+        attempt_id: Optional[str] = None,
+        blueprint_sha256: Optional[str] = None,
+        self_audit_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        return verify_proof_service(statement=statement, proof=proof)
+        return verify_proof_service(
+            statement=statement,
+            proof=proof,
+            problem_id=problem_id,
+            attempt_id=attempt_id,
+            blueprint_sha256=blueprint_sha256,
+            self_audit_id=self_audit_id,
+        )
 
     @app.tool(name="memory_init")
     def _tool_memory_init(

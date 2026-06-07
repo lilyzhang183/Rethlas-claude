@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROBLEM_FILE="${PROBLEM_FILE:-data/example.md}"
 MODEL="${MODEL:-claude-opus-4-8}"
 EFFORT="${EFFORT:-xhigh}"
+REQUIRE_VERIFICATION="${REQUIRE_VERIFICATION:-1}"
 
 if [[ "$PROBLEM_FILE" = /* ]]; then
   echo "PROBLEM_FILE must be relative to agents/generation: $PROBLEM_FILE" >&2
@@ -66,18 +67,26 @@ LOG_DIR="${LOG_DIR:-$ROOT_DIR/logs/$problem_rel}"
 mkdir -p "$LOG_DIR"
 
 log_file="$LOG_DIR/${problem_id}.md"
-prompt="Use CLAUDE.md exactly to solve the math problem in ${PROBLEM_FILE}. Use problem_id=${problem_rel}. ${ref_prompt}"
+
+if [[ "$REQUIRE_VERIFICATION" == "1" ]]; then
+  run_mode="verified"
+else
+  run_mode="exploratory"
+fi
+
+prompt="Use CLAUDE.md exactly to solve the math problem in ${PROBLEM_FILE}. Use problem_id=${problem_rel}. run_mode=${run_mode}. ${ref_prompt}"
 
 CLAUDE_VERSION="$(claude --version 2>/dev/null || echo 'unknown')"
 
 echo "========================================"
-echo " Claude Code: $CLAUDE_VERSION"
-echo " Model:       $MODEL"
-echo " Effort:      $EFFORT"
-echo " Problem:     $PROBLEM_FILE"
-echo " Problem ID:  $problem_rel"
-echo " References:  $ref_dir"
-echo " Log:         $log_file"
+echo " Claude Code:  $CLAUDE_VERSION"
+echo " Model:        $MODEL"
+echo " Effort:       $EFFORT"
+echo " Run mode:     $run_mode"
+echo " Problem:      $PROBLEM_FILE"
+echo " Problem ID:   $problem_rel"
+echo " References:   $ref_dir"
+echo " Log:          $log_file"
 echo "========================================"
 echo ""
 echo "Running ${PROBLEM_FILE} -> $log_file"
@@ -103,10 +112,19 @@ trap cleanup_timer EXIT
 
 VERIFY_URL="${VERIFY_URL:-http://127.0.0.1:8091/health}"
 if ! curl -sf "$VERIFY_URL" >/dev/null 2>&1; then
-  echo "WARNING: verification service not reachable at ${VERIFY_URL%%/health*}"
-  echo "         The agent will skip proof verification."
-  echo "         Start it first if you need verified proofs."
-  echo ""
+  if [[ "$REQUIRE_VERIFICATION" == "1" ]]; then
+    echo "ERROR: verification service not reachable at ${VERIFY_URL%%/health*}" >&2
+    echo "       The proof-writing discipline requires a verified outcome by default." >&2
+    echo "       Either start the verification service first:" >&2
+    echo "         cd agents/verification && uvicorn api.server:app --host 0.0.0.0 --port 8091" >&2
+    echo "       or, for an exploratory unverified run, set REQUIRE_VERIFICATION=0." >&2
+    exit 1
+  else
+    echo "WARNING: verification service not reachable at ${VERIFY_URL%%/health*}"
+    echo "         REQUIRE_VERIFICATION=0 set; running in EXPLORATORY mode."
+    echo "         The blueprint will NOT be renamed to blueprint_verified.md."
+    echo ""
+  fi
 fi
 
 claude_rc=0
