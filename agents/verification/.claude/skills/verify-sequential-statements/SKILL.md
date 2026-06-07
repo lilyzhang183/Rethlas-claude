@@ -42,14 +42,26 @@ Do not split the proof with utility code. Read the markdown in order and use its
 
 Every displayed claim in the proof must end with exactly one inline justification tag drawn from the canonical taxonomy. Acceptable tag labels:
 
-`[def: name]`, `[hyp]`, `[calc N]`, `[cite: paper_id, thm_id]`, `[from L.X]` / `[from L.X, Eq.Y]`, `[wlog: reason]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`.
+`[def: name]`, `[hyp: H<i>]`, `[calc N]`, `[cite: paper_id, thm_id]`, `[from L.X]` / `[from L.X, Eq.Y]`, `[wlog: reason]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`.
+
+Note: the hypothesis tag is **`[hyp: H<i>]`** with an explicit hypothesis identifier (e.g. `[hyp: H1]`, `[hyp: H2]`, `[hyp: local A]`). The bare `[hyp]` (no identifier) is no longer accepted — it produced uninformative "unused assumption" checks. The proof must list its hypotheses by name in a `## Assumptions` block (alongside `## Notation`), and every `[hyp: H<i>]` tag must resolve to one of those listed assumptions.
 
 For each displayed claim:
 
 1. **Untagged claim → critical error.** If a displayed claim has no inline tag from the taxonomy, record a critical error at that location with issue `"claim missing inline justification tag"`. This is not optional.
-2. **Tag uses an unknown label → critical error.** If a tag uses a label not in the taxonomy above, record a critical error with issue `"unrecognized justification tag <label>"`.
-3. **Tag fails to resolve → critical error.** `[from L.7]` when there is no Lemma 7; `[calc 3]` when there is no display (3); `[def: foo]` when `foo` is not in the proof's `## Notation` section or any prior definition. → critical error with issue `"justification tag does not resolve"`.
-4. **Tag does not justify the transition → critical error.** The cited lemma/definition/computation exists, but it does not actually entail the move from the previous line to this one. → critical error with issue `"tag resolves but does not justify the stated transition"`.
+2. **Tag uses an unknown label → critical error.** If a tag uses a label not in the taxonomy above (including bare `[hyp]` without an identifier), record a critical error with issue `"unrecognized justification tag <label>"`.
+3. **Tag fails to resolve → critical error.** `[from L.7]` when there is no Lemma 7; `[calc 3]` when there is no display (3); `[def: foo]` when `foo` is not in the proof's `## Notation` section or any prior definition; `[hyp: H3]` when `H3` is not listed in `## Assumptions`. → critical error with issue `"justification tag does not resolve"`.
+4. **Tag does not justify the transition → critical error.** The cited lemma/definition/computation/hypothesis exists, but it does not actually entail the move from the previous line to this one. → critical error with issue `"tag resolves but does not justify the stated transition"`.
+
+### Assumption-usage audit
+
+Read the `## Assumptions` block. For each listed hypothesis `H<i>`:
+
+- If at least one claim in the proof carries `[hyp: H<i>]` and that claim's transition genuinely depends on `H<i>` → assumption used. Pass.
+- If no claim carries `[hyp: H<i>]` but the `## Notation` entry for `H<i>` is annotated `usage: "unused-by-design"` with a one-sentence reason → pass (recorded for the report as informational).
+- Otherwise → `gap` at location `## Assumptions, H<i>` with issue `"assumption listed but never invoked in any [hyp: H<i>] tag"`.
+
+If the problem statement names a hypothesis that is missing entirely from `## Assumptions`, record a `critical_error` at location `## Assumptions` with issue `"hypothesis from problem statement is not listed in ## Assumptions block"`.
 
 ## Banned phrases (always trigger a critical error)
 

@@ -184,7 +184,7 @@ This section governs how every proof step is written into `blueprint.md`. It is 
 Every displayed claim in the proof must end with exactly one inline justification tag from this fixed set:
 
 - `[def: name]` — by a stated definition (must appear in `## Notation` or earlier in the proof).
-- `[hyp]` — by a hypothesis from the problem statement or a clearly scoped local assumption.
+- `[hyp: H<i>]` — by a named hypothesis from the `## Assumptions` block (e.g. `[hyp: H1]`, `[hyp: H2]`, `[hyp: local A]`). The bare `[hyp]` form (no identifier) is **not** accepted; every hypothesis use must name which hypothesis is being invoked.
 - `[calc N]` — by a numbered computation display labeled `(N)` above this line.
 - `[cite: paper_id, thm_id]` — by an external result. The full statement and source identifiers (paper_id, theorem_id, arXiv id) must appear nearby in the proof.
 - `[from L.X]` or `[from L.X, Eq.Y]` — by a previously proved local lemma/proposition X (optionally a specific equation Y inside it).
@@ -210,23 +210,48 @@ The following phrases, appearing in `blueprint.md` without an immediately-follow
 
 If any of these appears, the transition must be split and tagged using `$enforce-step-granularity`.
 
-### Verbatim notation rule
+### Three-tier notation rule
 
-When a result is cited from a source paper, the proof must use the source's exact symbols and names. If a local rename is unavoidable, an explicit one-sentence renaming declaration must appear in the proof and a corresponding entry must be appended to `notation_dictionary` with `source: "self-renaming from paper_id, ..."`. Silent renamings are critical errors.
+Notation discipline applies at three strictness tiers; `$align-with-source-notation` is the operational version of this rule.
 
-Every symbol used anywhere in the proof must appear in `notation_dictionary`. `$align-with-source-notation` is the operational version of this rule.
+- **Tier 1 — Global Notation.** Symbols used across multiple lemmas, imported from external sources, or persistent through the proof. Each Tier-1 symbol must have a `notation_dictionary` entry with `scope: "global"` and must appear as a bullet in the blueprint's `## Notation` section. When a result is cited from a source paper, the proof must use the source's **exact** symbols and names; if a local rename is unavoidable, an explicit one-sentence renaming declaration must appear in the proof and a corresponding `notation_dictionary` entry must record `source: "self-renaming from paper_id, ..."`. Silent renamings are critical errors.
+- **Tier 2 — Local Variables.** Bound variables introduced inside a single lemma proof (e.g. "let $\eta \in \Omega^1(M)$", "fix $\epsilon > 0$"). These are declared at the introduction site inside the lemma. Append to `notation_dictionary` with `scope: "local"` and `scope_block: "<lemma_id>"` for parent-agent bookkeeping, but **do not** flush them to `## Notation`. They must not be reused with a different meaning outside their lemma; leaking a local symbol out of scope is a critical error.
+- **Tier 3 — Standard Constants.** A small whitelist of universal symbols (`\mathbb{N}`, `\mathbb{Z}`, `\mathbb{Q}`, `\mathbb{R}`, `\mathbb{C}`, `\emptyset`, `id`, `\in`, `\subset`, etc.) plus any symbols declared under a `# Standard Constants` heading in `data/{problem_id}.glossary.md`. No `notation_dictionary` entry needed; the verifier resolves from the whitelist. If a problem uses a whitelisted symbol with a non-standard meaning, promote it to Tier 1 with an explicit `## Notation` entry overriding the default.
 
 ### Notation section in the blueprint
 
-The blueprint must contain a `## Notation` section near the top (after the title, before the first lemma) that lists every entry in `notation_dictionary`. The verifier reads this section to perform `$check-notation-consistency`; if it is missing or stale, the audit fails.
+The blueprint must contain a `## Notation` section near the top (after the title, before the first lemma) listing every Tier-1 entry from `notation_dictionary`. Tier-2 declarations live inline inside their lemmas; Tier-3 constants need no declaration. The verifier reads `## Notation` to perform `$check-notation-consistency`; if it is missing or stale relative to the Tier-1 entries, the audit fails.
+
+### Assumptions section in the blueprint
+
+The blueprint must contain a `## Assumptions` block (alongside `## Notation`) listing every hypothesis from the problem statement with an explicit identifier:
+
+```markdown
+## Assumptions
+- H1: $M$ is a smooth manifold.
+- H2: $\mathcal{F}$ is a singular foliation on $M$.
+- H3: $p$ is a fixed point of every leaf-preserving symmetry.
+```
+
+Justification tags use `[hyp: H<i>]` referencing these identifiers. Every assumption must be either invoked by at least one `[hyp: H<i>]` tag in the proof body or annotated `usage: "unused-by-design"` in `notation_dictionary` with a one-sentence reason.
 
 ### Display every nontrivial computation
 
 Every nontrivial computation must be *displayed* in a numbered environment, not concluded inline. Conclusion-only computations (e.g., "Thus $T(\eta) = 0$" without a displayed derivation) are critical errors caught by the verifier's `$check-computational-replay`.
 
-### Self-audit gate
+### Self-audit gate (hash-anchored)
 
-`$verify-proof` may not call `verify_proof_service` until `$self-audit` returns `audit_pass=true` for the current `blueprint.md` state. Any edit to `blueprint.md` after a passing audit invalidates that audit; re-run `$self-audit` before re-invoking `$verify-proof`. This is a hard control-flow gate.
+`$verify-proof` may not call `verify_proof_service` until `$self-audit` returns `audit_pass=true` for the current `blueprint.md` state, and the audit record's `blueprint_sha256` equals `sha256(blueprint.md as bytes)`. Any edit to `blueprint.md` after a passing audit changes the sha256 and invalidates that audit; re-run `$self-audit` before re-invoking `$verify-proof`.
+
+When `$verify-proof` invokes `verify_proof_service`, it must pass `problem_id`, `attempt_id`, `blueprint_sha256`, and `self_audit_id` so the verification service can confirm it is verifying the exact bytes that were audited. The verifier writes the same hash back into `results/{run_id}/metadata.json`, closing the round-trip.
+
+### Warning severity (verifier output)
+
+The verifier returns three severity levels in its `verification_report`:
+
+- `critical_error` — proof is mathematically invalid or applies a nonexistent / misused theorem. **Blocks `verdict=correct`.**
+- `gap` — proof may be true but is missing a needed argument, justification, or computation. **Blocks `verdict=correct`.**
+- `warning` — style, cleanup, orphan notation entries, redundant declarations, verbosity. **Does NOT block `verdict=correct`.** Record for cleanup in a follow-up revision, but the proof is accepted.
 
 ## Hard Invariants
 

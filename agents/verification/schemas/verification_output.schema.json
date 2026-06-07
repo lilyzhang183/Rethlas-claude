@@ -15,7 +15,8 @@
       "required": [
         "summary",
         "critical_errors",
-        "gaps"
+        "gaps",
+        "warnings"
       ],
       "properties": {
         "summary": {
@@ -25,28 +26,26 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/finding"
-          }
+          },
+          "description": "Mathematical invalidity or wrong references. Block verdict=correct."
         },
         "gaps": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/finding"
-          }
+          },
+          "description": "Proof may be true but missing a needed argument. Block verdict=correct."
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/finding"
+          },
+          "description": "Style, cleanup, orphan notation, redundant declarations, stale memory. Do NOT block verdict=correct."
         },
         "notes": {
-          "type": "string"
-        },
-        "checked_items": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "external_reference_checks": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "type": "string",
+          "description": "Free-form notes from the verifier, optional."
         }
       }
     },
@@ -79,7 +78,12 @@
           "minLength": 1
         },
         "severity": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "critical_error",
+            "gap",
+            "warning"
+          ]
         },
         "evidence": {
           "type": "string"

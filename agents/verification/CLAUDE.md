@@ -152,10 +152,13 @@ The final response and file content must be:
   "verification_report": {
     "summary": "string",
     "critical_errors": [
-      {"location": "string", "issue": "string"}
+      {"location": "string", "issue": "string", "severity": "critical_error"}
     ],
     "gaps": [
-      {"location": "string", "issue": "string"}
+      {"location": "string", "issue": "string", "severity": "gap"}
+    ],
+    "warnings": [
+      {"location": "string", "issue": "string", "severity": "warning"}
     ]
   },
   "verdict": "correct",
@@ -163,28 +166,42 @@ The final response and file content must be:
 }
 ```
 
-If any error or gap exists, `verdict` must be `"wrong"` and `repair_hints` must be non-empty.
+The four fields `summary`, `critical_errors`, `gaps`, and `warnings` are all required; empty arrays are acceptable but the keys must be present.
+
+If any `critical_error` or `gap` exists, `verdict` must be `"wrong"` and `repair_hints` must be non-empty. Warnings do **not** block correctness; orphan notation, redundant declarations, and style issues are recorded as warnings and do not move `verdict` from `correct` to `wrong`.
 
 ## Audit Dimensions
 
 Verification runs five mandatory passes. Each writes findings into the appropriate memory channel; `$synthesize-verification-report` aggregates all of them into the final verdict.
 
-1. **Sequential statement verification** (`$verify-sequential-statements`) — local logical validity, theorem applicability, gap detection, and the tagging-discipline check. Every displayed claim must end with a tag from the canonical taxonomy (`[def]`, `[hyp]`, `[calc N]`, `[cite: ...]`, `[from L.X]`, `[wlog: ...]`, `[ind: ...]`, `[comp]`, `[functoriality]`, `[naturality]`); untagged claims, unresolved tags, and tags that fail to justify their transition are critical errors. Skipped derivations are mandatory gaps. Banned phrases ("clearly", "obviously", etc.) without an attached tag are critical errors.
+### Severity ladder
 
-2. **Notation consistency** (`$check-notation-consistency`) — parses the proof's `## Notation` section (the generation agent flushes its `notation_dictionary` channel into this section at the top of the blueprint), builds a per-symbol usage map across the whole proof, and audits every symbol against:
-   - undefined use (symbol in proof but not in `## Notation`),
-   - multiple meanings,
-   - silent renamings of borrowed notation,
-   - drift from the cited source's definition,
-   - unresolved sources.
+All findings carry one of three severities. The verdict rule depends only on the first two:
 
-   All five conditions produce critical errors. Orphan entries (declared but unused) are gaps.
+- `critical_error` — proof is mathematically invalid or applies a nonexistent / misused theorem. **Blocks `verdict=correct`.**
+- `gap` — proof may be true but missing a needed argument, justification, or computation. **Blocks `verdict=correct`.**
+- `warning` — style, cleanup, orphan notation entries, redundant declarations, stale memory. **Does NOT block `verdict=correct`.**
 
-3. **Computational replay** (`$check-computational-replay`) — for every numbered computation display and every chain tagged `[calc N]`, re-derives the right side from the left side using only the stated justification and the notation dictionary. Replay failures, conclusion-only computations (no displayed steps), and missing intermediate identities are critical errors or gaps as appropriate.
+### Pass-by-pass
 
-4. **Referenced statement validation** (`$check-referenced-statements`) — for every `[cite: ...]` tag, confirms via `search_arxiv_theorems` (with `WebSearch` fallback) that the cited statement exists and is being applied with matching definitions and hypotheses in the current proof's context.
+1. **Sequential statement verification** (`$verify-sequential-statements`) — local logical validity, theorem applicability, gap detection, and the tagging-discipline check. Every displayed claim must end with a tag from the canonical taxonomy (`[def: name]`, `[hyp: H<i>]`, `[calc N]`, `[cite: ...]`, `[from L.X]`, `[wlog: ...]`, `[ind: ...]`, `[comp]`, `[functoriality]`, `[naturality]`); the bare `[hyp]` form (no identifier) is no longer accepted. Untagged claims, unresolved tags, and tags that fail to justify their transition are critical errors. Skipped derivations are mandatory gaps. Banned phrases ("clearly", "obviously", etc.) without an attached tag are critical errors. The pass also audits the proof's `## Assumptions` block: hypotheses listed but never invoked via `[hyp: H<i>]` are gaps; hypotheses from the problem statement missing from `## Assumptions` are critical errors.
 
-5. **Synthesis** (`$synthesize-verification-report`) — aggregates findings across the four audits, applies the strict verdict rule (`correct` iff zero critical errors and zero gaps), and writes `results/{run_id}/verification.json`.
+2. **Notation consistency** (`$check-notation-consistency`) — parses the proof's `## Notation` section (the generation agent flushes Tier-1 entries from its `notation_dictionary` into this section) plus per-lemma local variable declarations, and audits every symbol used in the proof under a three-tier strictness model:
+   - **Tier 1 (global)** — declared in `## Notation`. Audited strictly: undefined use, multiple meanings, silent renamings, drift from cited source, unresolved sources are all critical errors. Tier-1 entries declared but never used are **warnings** (down from gaps — they do not block correctness).
+   - **Tier 2 (local)** — bound variables declared at their introduction site inside a single lemma proof. Audited for scope leakage (critical error if a local symbol is re-used outside its lemma) and conflicting redeclaration.
+   - **Tier 3 (standard)** — whitelist of universal symbols (`\mathbb{N}`, `\mathbb{R}`, `id`, `\emptyset`, etc.) plus glossary `# Standard Constants` extensions. No audit; the verifier resolves from the whitelist.
+
+3. **Computational replay** (`$check-computational-replay`) — for every numbered computation display and every chain tagged `[calc N]`, re-derives the right side from the left side using only the stated justification, the notation dictionary, and previously verified steps. Classifies each step into a four-level taxonomy:
+   - `mechanically_ok` — direct syntactic rewrite. No finding.
+   - `human_math_ok` — valid by a standard algebraic manipulation consistent with the stated tag. No finding (warning if the tag is missing or misclassifies the manipulation).
+   - `needs_intermediate` — likely valid but too compressed; missing intermediate identity. Gap.
+   - `failure` — actually wrong or unsupported by the stated justification. Critical error.
+
+   Conclusion-only computations (assertions of computational results without any displayed steps or `[calc N]`) are critical errors regardless of replay outcome.
+
+4. **Referenced statement validation** (`$check-referenced-statements`) — for every `[cite: ...]` tag, confirms via `search_theorem_index` (with `WebSearch` fallback) that the cited statement exists and is being applied with matching definitions and hypotheses in the current proof's context.
+
+5. **Synthesis** (`$synthesize-verification-report`) — aggregates findings across the four audits, partitions by severity, applies the strict verdict rule (`correct` iff zero critical_errors AND zero gaps; warnings do not block), and writes `results/{run_id}/verification.json` with all three severity arrays populated.
 
 ## Hard Invariants
 

@@ -5,7 +5,15 @@ description: Maintain verbatim notation alignment with cited sources by recordin
 
 # Align with Source Notation
 
-Notation drift is a leading cause of mistaken citations and unreadable proofs. This skill enforces the rule: **verbatim if borrowed**. When a result is taken from an external paper, the proof must use that paper's exact symbols and names, and every symbol used anywhere in the proof must be traceable to a definition or a citation.
+Notation drift is a leading cause of mistaken citations and unreadable proofs. This skill enforces the rule: **verbatim if borrowed**. Every borrowed symbol must be copied from its source verbatim and recorded in `notation_dictionary`. Every locally introduced symbol that is used across more than one lemma must also be recorded. Bound variables introduced inside a single lemma proof are *not* recorded globally — they live in the lemma scope.
+
+## Three notation tiers
+
+Each `notation_dictionary` entry carries a `scope` field with one of three values; the tier governs both how the entry is recorded and how the verifier audits it:
+
+- **Tier 1 — `scope: "global"`.** Symbols used across multiple lemmas, imported from external sources, or carried throughout the proof. Flushed into the blueprint's `## Notation` section. Audited strictly by `$check-notation-consistency`.
+- **Tier 2 — `scope: "local"`.** Bound variables introduced inside one lemma/proposition/theorem proof (e.g. "let $x \in M$", "fix $\eta \in \Omega^1(M)$"). Declared at the introduction site inside the lemma but **not** flushed to `## Notation`. Use the dictionary to record them for the parent agent's bookkeeping, especially when sub-agents are working in parallel; verification only checks that they are declared locally and do not leak outside their scope.
+- **Tier 3 — `scope: "standard"`.** Universal mathematical constants and operators (`\mathbb{N}`, `\mathbb{Z}`, `\mathbb{Q}`, `\mathbb{R}`, `\mathbb{C}`, `\emptyset`, `id`, `\in`, `\subset`, etc.) plus any symbols declared under a `# Standard Constants` heading in `data/{problem_id}.glossary.md`. These need no `notation_dictionary` entry at all; the verifier resolves them from the whitelist. If a problem uses a whitelisted symbol with a non-standard meaning, promote it to Tier 1 with an explicit `## Notation` entry overriding the default.
 
 ## Input Contract
 
@@ -20,13 +28,14 @@ Read:
 
 ### 1. Glossary seeding (run once at problem start)
 
-If `data/{problem_id}.glossary.md` exists, read each heading and body and append one entry per term to `notation_dictionary` with:
+If `data/{problem_id}.glossary.md` exists, read each heading and body. Glossary entries under regular headings are Tier-1; entries under a `# Standard Constants` heading are Tier-3 whitelist extensions and do not get appended (record them once in `events` for traceability). For each Tier-1 glossary entry, append one record to `notation_dictionary`:
 
 ```json
 {
   "symbol": "the symbol or term as written in the glossary heading",
   "meaning": "the body of the glossary entry",
   "source": "glossary",
+  "scope": "global",
   "first_used_at": "init"
 }
 ```
@@ -45,6 +54,7 @@ When citing a theorem, lemma, or definition from a source paper:
   "symbol": "as written in the source",
   "meaning": "what it denotes, expanded using the source's context",
   "source": "paper_id (and arXiv id), §/Def/Eq reference",
+  "scope": "global",
   "first_used_at": "blueprint location where first introduced"
 }
 ```
@@ -56,6 +66,7 @@ When citing a theorem, lemma, or definition from a source paper:
   "symbol": "local symbol used in the proof",
   "meaning": "same as <source symbol>",
   "source": "self-renaming from paper_id, §/Eq reference",
+  "scope": "global",
   "renamed_from": "the source's original symbol",
   "first_used_at": "blueprint location of the renaming declaration"
 }
@@ -65,14 +76,34 @@ The renaming declaration in the proof must read like: "We write $X$ for what [Au
 
 ### 3. Introducing a new local symbol
 
-When the proof introduces a symbol of its own (not borrowed), append:
+When the proof introduces a symbol of its own (not borrowed), classify by intended use first:
+
+- Will it be used across multiple lemmas, or carry through the proof? → Tier 1 (`scope: "global"`). Append to `notation_dictionary` and include in `## Notation`.
+- Is it a bound variable scoped to one lemma proof (e.g. "let $\epsilon > 0$ in the proof of Lemma 4")? → Tier 2 (`scope: "local"`). Declare it inline at the introduction site, and append to `notation_dictionary` with the parent lemma's id under `scope_block` (do not flush to `## Notation`).
+- Is it a Tier-3 standard constant being used with its standard meaning? → no append needed.
+
+For Tier 1:
 
 ```json
 {
-  "symbol": "the local symbol",
+  "symbol": "the global symbol",
   "meaning": "the local definition",
-  "source": "self, Definition X.Y" | "self, Equation N",
+  "source": "self, Definition X.Y",
+  "scope": "global",
   "first_used_at": "blueprint location"
+}
+```
+
+For Tier 2:
+
+```json
+{
+  "symbol": "the bound variable",
+  "meaning": "what it ranges over, e.g. 'a smooth positive real'",
+  "source": "self, Lemma 4 proof",
+  "scope": "local",
+  "scope_block": "lem:foo",
+  "first_used_at": "Lemma 4 proof, line where 'let' appears"
 }
 ```
 
@@ -82,7 +113,19 @@ Before reusing any symbol elsewhere in the proof, query `notation_dictionary` an
 
 ### 5. Flushing the dictionary into the blueprint
 
-When `blueprint.md` is being assembled or revised, render the contents of `notation_dictionary` as a `## Notation` section at the very top of the document, after the title but before the lemmas. Each entry becomes one bullet:
+When `blueprint.md` is being assembled or revised, render every Tier-1 (`scope: "global"`) entry from `notation_dictionary` as a bullet in a `## Notation` section at the very top of the document, after the title but before the lemmas. Tier-2 (`scope: "local"`) entries do not get flushed — their declarations remain inline inside the lemma where they were introduced. Tier-3 standard constants are not flushed either.
+
+The same blueprint must also contain a `## Assumptions` block (alongside `## Notation`) listing every hypothesis from the problem statement with an explicit identifier (`H1`, `H2`, ...). Justification tags use `[hyp: H<i>]` referencing these identifiers; the bare `[hyp]` form is rejected. Example:
+
+```markdown
+## Assumptions
+
+- H1: $M$ is a smooth manifold.
+- H2: $\mathcal{F}$ is a singular foliation on $M$.
+- H3: $p$ is a fixed point of every leaf-preserving symmetry.
+```
+
+Each Tier-1 `notation_dictionary` entry becomes one bullet in `## Notation`:
 
 ```markdown
 ## Notation
