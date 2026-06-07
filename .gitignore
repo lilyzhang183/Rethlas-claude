@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.uv-cache/
+
+# Agent runtime artifacts
+agents/*/results/
+agents/*/logs/
+agents/*/memory/
+agents/*/downloads/
+
+# PDF extraction cache
+agents/generation/data/**/.extracted/
+
+# OS
+.DS_Store

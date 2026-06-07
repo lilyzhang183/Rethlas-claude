@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "reasoning_agent": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["./mcp/server.py"]
+    }
+  }
+}

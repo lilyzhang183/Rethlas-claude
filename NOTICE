@@ -1,0 +1,34 @@
+Rethlas-claude
+Copyright 2026 Lily Zhang
+
+This product is a derivative work of:
+
+  Rethlas
+  Copyright 2025 frenzymath
+  https://github.com/frenzymath/Rethlas
+  Licensed under the Apache License, Version 2.0
+
+Changes from upstream:
+  - Translated the agent runtime target from the OpenAI Codex CLI to the
+    Claude Code CLI.
+  - Renamed AGENTS.md to CLAUDE.md (verbatim content with Codex-specific
+    references swapped to their Claude Code equivalents).
+  - Moved .agents/skills/<name>/SKILL.md to .claude/skills/<name>/SKILL.md
+    and dropped the Codex-specific agents/openai.yaml manifests.
+  - Converted .codex/agents/subgoal-prover.toml to
+    .claude/agents/subgoal-prover.md (Claude Code subagent format).
+  - Replaced .codex/config.toml MCP server registrations with .mcp.json
+    files at each agent's project root.
+  - Rewrote agents/verification/api/server.py and
+    agents/generation/tests/run_example.sh to invoke `claude -p` instead
+    of `codex exec`, with environment variables CLAUDE_BIN, CLAUDE_MODEL,
+    CLAUDE_EFFORT, CLAUDE_TIMEOUT_SECONDS in place of their CODEX_ counterparts.
+  - Updated skill text that referenced "Codex built-in web search" to
+    reference Claude Code's built-in WebSearch tool, and updated the
+    recursive-proving skill to use Claude Code's Agent tool with
+    subagent_type=subgoal-prover in place of Codex's spawn_agent /
+    wait_agent primitives.
+
+The MCP servers, the verification JSON schema, the FastAPI surface, the
+memory channel layout, and the mathematical procedures inside every
+SKILL.md file remain byte-identical to upstream where not noted above.
