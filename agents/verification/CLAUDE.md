@@ -34,12 +34,15 @@ No code-level proof parser is required. Do not invent parser modules for subgoal
 Use these skills in this order:
 
 1. `$verify-sequential-statements`
-2. `$check-notation-consistency`
-3. `$check-computational-replay`
-4. `$check-referenced-statements`
-5. `$synthesize-verification-report`
+2. `$check-proof-obligation-graph`
+3. `$check-notation-consistency`
+4. `$check-computational-replay`
+5. `$check-referenced-statements`
+6. `$synthesize-verification-report`
 
-`$check-notation-consistency` and `$check-computational-replay` are mandatory mid-pipeline audits added to catch notation drift and unstated computational steps respectively. See "Audit Dimensions" below for what each adds.
+`$check-proof-obligation-graph` is the structural rigor backbone. It loads `proof_obligations.json` (supplied alongside the proof in the verification request) and validates the DAG: no cycles, no forward references, no self-dependence, no hidden dependencies missing from `depends_on`, and every node reachable from `MainThm` is proved or externally cited. If the graph is missing, unparseable, or violates any of these properties, the verdict is `wrong`.
+
+`$check-notation-consistency` and `$check-computational-replay` are the per-symbol and per-step audits described under "Audit Dimensions" below.
 
 
 ## Memory Policy
@@ -184,6 +187,8 @@ All findings carry one of three severities. The verdict rule depends only on the
 
 ### Pass-by-pass
 
+0. **Proof-obligation graph** (`$check-proof-obligation-graph`) — loads `proof_obligations.json` and validates it as a DAG. Flags cycles, forward references, missing nodes, self-dependence, hidden dependencies (tags whose target is not declared in `depends_on`), unreached main-theorem subgraph, and any stub/blocked obligation reachable from the main theorem. Turns "no circular reasoning" into a data invariant that markdown-only audits cannot catch.
+
 1. **Sequential statement verification** (`$verify-sequential-statements`) — local logical validity, theorem applicability, gap detection, and the tagging-discipline check. Every displayed claim must end with a tag from the canonical taxonomy (`[def: name]`, `[hyp: H<i>]`, `[calc N]`, `[cite: ...]`, `[from L.X]`, `[wlog: ...]`, `[ind: ...]`, `[comp]`, `[functoriality]`, `[naturality]`); the bare `[hyp]` form (no identifier) is no longer accepted. Untagged claims, unresolved tags, and tags that fail to justify their transition are critical errors. Skipped derivations are mandatory gaps. Banned phrases ("clearly", "obviously", etc.) without an attached tag are critical errors. The pass also audits the proof's `## Assumptions` block: hypotheses listed but never invoked via `[hyp: H<i>]` are gaps; hypotheses from the problem statement missing from `## Assumptions` are critical errors.
 
 2. **Notation consistency** (`$check-notation-consistency`) — parses the proof's `## Notation` section (the generation agent flushes Tier-1 entries from its `notation_dictionary` into this section) plus per-lemma local variable declarations, and audits every symbol used in the proof under a three-tier strictness model:
@@ -210,4 +215,4 @@ All findings carry one of three severities. The verdict rule depends only on the
 3. External-paper references must be checked via `search_theorem_index` first, then Claude Code's built-in `WebSearch` tool.
 4. Accept iff there are zero errors and zero gaps.
 5. Persist final JSON to `results/{run_id}/verification.json`.
-6. The five audit passes are mandatory and in the stated order. Skipping any pass, or running them out of order, is a control-flow error.
+6. The six audit passes are mandatory and in the stated order (sequential → graph → notation → replay → references → synthesis). Skipping any pass, or running them out of order, is a control-flow error.

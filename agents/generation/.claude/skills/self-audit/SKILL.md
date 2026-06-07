@@ -18,7 +18,7 @@ Read:
 
 ## Audit Checklist
 
-The audit consists of eleven checks. Each check emits findings at the appropriate severity. The overall audit passes iff zero critical_errors **and** zero gaps; warnings do not block.
+The audit consists of twelve checks. Each check emits findings at the appropriate severity. The overall audit passes iff zero critical_errors **and** zero gaps; warnings do not block.
 
 ### Check 1: Three-tier notation coverage
 
@@ -91,17 +91,36 @@ Search the blueprint for: "clearly", "obviously", "trivially", "it is easy to se
 
 The main theorem section must be the last `# theorem` heading in the blueprint, and every `[cite]` / `[from L.X]` tag inside its proof must point either backward in the blueprint or to an external result with full identifiers. **Severity:** Violation → `critical_error`.
 
-### Check 10: Blueprint hash is current and recorded
+### Check 10: Rigor-mode triple-hash is current and recorded
 
-Compute `blueprint_sha256 = sha256(blueprint.md as bytes)`. Record it in the audit output. The `$verify-proof` skill will pass this hash to `verify_proof_service` so the verifier can confirm it audited the exact bytes being verified.
+Compute three hashes for the rigor-mode artifact triple:
 
-**Severity:** This check is a record-keeping operation, not a fail. It always passes once the hash is computed.
+- `blueprint_sha256 = sha256(blueprint.md as bytes)`
+- `proof_obligations_sha256 = sha256(results/{problem_id}/proof_obligations.json as bytes)`
+- `notation_dictionary_sha256 = sha256(memory/{problem_id}/notation_dictionary.jsonl as bytes)`
+
+Record all three in the audit output. The `$verify-proof` skill will pass them to `verify_proof_service` so the verifier can confirm it audited the exact byte state being verified. Any edit to any of the three files invalidates the audit and requires a fresh `$self-audit` run.
+
+**Severity:** This check is a record-keeping operation. If `proof_obligations.json` is missing in rigor mode, this becomes a `critical_error` with issue `"proof_obligations.json absent; rigor mode requires the structural DAG to be present"`.
 
 ### Check 11: Notation_dictionary <-> Notation section consistency
 
 Every Tier-1 (`scope=global`) entry in `notation_dictionary` must appear as a bullet in `## Notation`, and vice versa. Tier-2 (`scope=local`) entries appear in the dictionary for the parent agent's bookkeeping but are not flushed to `## Notation`. Tier-3 (`scope=standard`) entries from the glossary `# Standard Constants` extend the whitelist and may be silently omitted from `## Notation`.
 
 **Severity:** Tier-1 entry in dictionary missing from `## Notation`, or vice versa → `critical_error`.
+
+### Check 12: Proof-obligation graph is structurally valid
+
+Read `results/{problem_id}/proof_obligations.json` and audit:
+
+1. Every nontrivial assertion in `blueprint.md` (every lemma, proposition, theorem, claim, numbered equation, and tagged computation) has a corresponding node.
+2. The DAG is acyclic.
+3. No node depends on itself directly or transitively.
+4. `MainThm` does not appear in the dependency chain of any of its dependencies.
+5. Every `MainThm`-reachable node has `status` in `{proved_in_blueprint, external_citation}` (no `stub` or `blocked`).
+6. Every inline justification tag in `blueprint.md` corresponds to an entry in the appropriate node's `depends_on`.
+
+**Severity:** Any of 1–6 violated → `critical_error`. This pre-empts the verifier's structural check; if `$check-proof-obligation-graph` would reject the blueprint, `$self-audit` rejects it first so no verification call is wasted.
 
 ## Procedure
 
@@ -121,8 +140,10 @@ Append a single JSON record per audit run to `verification_reports` with `record
   "record_type": "self_audit",
   "audit_id": "audit_20260607T134522Z_a4f29b1c",
   "blueprint_sha256": "9f3c8b6d...e1a7",
+  "proof_obligations_sha256": "2c4e1a7b...8d3f",
+  "notation_dictionary_sha256": "6a90b5f1...c2e8",
   "audit_pass": true,
-  "checks_run": ["check_1", ..., "check_11"],
+  "checks_run": ["check_1", ..., "check_12"],
   "critical_errors": [],
   "gaps": [],
   "warnings": [
@@ -135,10 +156,12 @@ Append a single JSON record per audit run to `verification_reports` with `record
 
 `$verify-proof` must refuse to invoke `verify_proof_service` unless:
 
-1. the most recent `self_audit` record for this `blueprint_sha256` has `audit_pass=true`, AND
-2. the current `sha256(blueprint.md)` equals the recorded `blueprint_sha256`.
+1. the most recent `self_audit` record has `audit_pass=true`, AND
+2. the current `sha256(blueprint.md)` equals the recorded `blueprint_sha256`, AND
+3. the current `sha256(proof_obligations.json)` equals the recorded `proof_obligations_sha256`, AND
+4. the current `sha256(notation_dictionary.jsonl)` equals the recorded `notation_dictionary_sha256`.
 
-Any edit to `blueprint.md` after a passing audit changes the sha256 and invalidates that audit; `$self-audit` must be re-run before the next verification call.
+Any edit to any of the three files after a passing audit changes its sha256 and invalidates that audit; `$self-audit` must be re-run before the next verification call.
 
 ## Output Contract
 

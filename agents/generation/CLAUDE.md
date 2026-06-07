@@ -254,11 +254,46 @@ Justification tags use `[hyp: H<i>]` referencing these identifiers. Every assump
 
 Every nontrivial computation must be *displayed* in a numbered environment, not concluded inline. Conclusion-only computations (e.g., "Thus $T(\eta) = 0$" without a displayed derivation) are critical errors caught by the verifier's `$check-computational-replay`.
 
-### Self-audit gate (hash-anchored)
+### Self-audit gate (multi-hash-anchored)
 
-`$verify-proof` may not call `verify_proof_service` until `$self-audit` returns `audit_pass=true` for the current `blueprint.md` state, and the audit record's `blueprint_sha256` equals `sha256(blueprint.md as bytes)`. Any edit to `blueprint.md` after a passing audit changes the sha256 and invalidates that audit; re-run `$self-audit` before re-invoking `$verify-proof`.
+`$verify-proof` may not call `verify_proof_service` until `$self-audit` returns `audit_pass=true` for the current rigor-mode artifact state. "Current state" is defined by **three** hashes: `blueprint_sha256 = sha256(blueprint.md)`, `proof_obligations_sha256 = sha256(proof_obligations.json)`, and `notation_dictionary_sha256 = sha256(notation_dictionary.jsonl)`. All three must match the corresponding fields on the most recent passing `self_audit` record. Any edit to any of those three files invalidates the audit; re-run `$self-audit` before re-invoking `$verify-proof`.
 
-When `$verify-proof` invokes `verify_proof_service`, it must pass `problem_id`, `attempt_id`, `blueprint_sha256`, and `self_audit_id` so the verification service can confirm it is verifying the exact bytes that were audited. The verifier writes the same hash back into `results/{run_id}/metadata.json`, closing the round-trip.
+When `$verify-proof` invokes `verify_proof_service`, it must pass `problem_id`, `attempt_id`, `blueprint_sha256`, `proof_obligations_sha256`, `notation_dictionary_sha256`, `self_audit_id`, and the literal content of `proof_obligations.json` so the verification service can run `$check-proof-obligation-graph` over the structural DAG. The verifier writes all three hashes back into `results/{run_id}/metadata.json` and includes `verified_blueprint_sha256` in the response, closing the round-trip.
+
+## Rigor Mode: Proof Obligation Discipline
+
+The final blueprint is not only prose. Every nontrivial assertion in `blueprint.md` must have a corresponding node in `results/{problem_id}/proof_obligations.json`.
+
+A proof obligation node records:
+
+- unique `node_id` (`L<n>`, `D<n>`, `H<n>`, `N<n>`, `<parent>.eq<n>`, `E<n>`, `MainThm`);
+- `type` (`lemma`, `proposition`, `theorem`, `claim`, `equation`, `computation`, `definition`);
+- exact `statement`;
+- local `context` (active assumptions, definitions, notation entries in scope at the node site);
+- `depends_on` (node_ids of earlier obligations the node uses, plus `Source.*` for external citations);
+- `proof_location` (a stable markdown anchor inside `blueprint.md`);
+- `status` (`proved_in_blueprint`, `axiom`, `external_citation`, `stub`, `blocked`);
+- `verification_status` (`unchecked`, `verified`, `failed`);
+- `blueprint_sha256` (the hash at the time the obligation was last updated).
+
+Before writing any theorem, lemma, claim, or computation into the final blueprint:
+
+1. Create or update its proof-obligation node.
+2. Ensure all dependencies point backward (earlier `proof_location`), or are external `Source.*` citations.
+3. Ensure no dependency chain returns to the current node or to `MainThm` (no node may transitively depend on the theorem it is helping to prove).
+4. Ensure every symbol used in the node's `statement` is declared in `## Notation`, in the parent lemma's `## Context`, or in the Tier-3 standard-constants whitelist.
+5. Ensure every external `Source.*` dependency has a corresponding theorem-application table in the markdown (see `$align-with-source-notation`).
+
+A proof is acceptable only if:
+
+- the proof-obligation graph is acyclic;
+- every obligation reachable from `MainThm` (via reverse-`depends_on`) is `proved_in_blueprint` or `external_citation` — no `stub` or `blocked` nodes in that subgraph;
+- every displayed assertion has an exact inline tag whose target appears in the node's `depends_on`;
+- every computation is displayed and replayable;
+- every external theorem has a theorem-application table;
+- the verifier returns `verdict=correct` for the exact current triple `(blueprint_sha256, proof_obligations_sha256, notation_dictionary_sha256)`.
+
+This turns "no circular reasoning" and "no missing dependencies" from prose discipline into a data invariant. The verifier's `$check-proof-obligation-graph` pass is structural; the markdown-level audits cannot catch what only the DAG can.
 
 ### Warning severity (verifier output)
 

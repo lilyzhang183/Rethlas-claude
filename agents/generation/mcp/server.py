@@ -242,6 +242,9 @@ def verify_proof_service(
     problem_id: Optional[str] = None,
     attempt_id: Optional[str] = None,
     blueprint_sha256: Optional[str] = None,
+    proof_obligations_sha256: Optional[str] = None,
+    notation_dictionary_sha256: Optional[str] = None,
+    proof_obligations_json: Optional[str] = None,
     self_audit_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     if not statement.strip():
@@ -261,6 +264,12 @@ def verify_proof_service(
         payload["attempt_id"] = attempt_id
     if blueprint_sha256 is not None:
         payload["blueprint_sha256"] = blueprint_sha256
+    if proof_obligations_sha256 is not None:
+        payload["proof_obligations_sha256"] = proof_obligations_sha256
+    if notation_dictionary_sha256 is not None:
+        payload["notation_dictionary_sha256"] = notation_dictionary_sha256
+    if proof_obligations_json is not None:
+        payload["proof_obligations_json"] = proof_obligations_json
     if self_audit_id is not None:
         payload["self_audit_id"] = self_audit_id
 
@@ -286,6 +295,9 @@ def verify_proof_service(
         "request_path": body.get("request_path"),
         "verification_path": body.get("verification_path"),
         "metadata": body.get("metadata"),
+        "verified_blueprint_sha256": body.get("verified_blueprint_sha256"),
+        "verified_proof_obligations_sha256": body.get("verified_proof_obligations_sha256"),
+        "verified_self_audit_id": body.get("verified_self_audit_id"),
     }
 
 
@@ -607,6 +619,9 @@ def build_mcp_app() -> Optional[Any]:
         problem_id: Optional[str] = None,
         attempt_id: Optional[str] = None,
         blueprint_sha256: Optional[str] = None,
+        proof_obligations_sha256: Optional[str] = None,
+        notation_dictionary_sha256: Optional[str] = None,
+        proof_obligations_json: Optional[str] = None,
         self_audit_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         return verify_proof_service(
@@ -615,6 +630,9 @@ def build_mcp_app() -> Optional[Any]:
             problem_id=problem_id,
             attempt_id=attempt_id,
             blueprint_sha256=blueprint_sha256,
+            proof_obligations_sha256=proof_obligations_sha256,
+            notation_dictionary_sha256=notation_dictionary_sha256,
+            proof_obligations_json=proof_obligations_json,
             self_audit_id=self_audit_id,
         )
 
