@@ -70,7 +70,7 @@ Do this whenever the constructed example is useful enough to test future claims 
 - `memory_append`
 - `memory_search`
 - `branch_update`
-- Claude Code's built-in `WebSearch` tool and `search_arxiv_theorems` to find standard counterexample patterns
+- Claude Code's built-in `WebSearch` tool and `search_theorem_index` to find standard counterexample patterns
 - reuse stored counterexamples to test future conjectures/claims
 
 ## Failure Logging

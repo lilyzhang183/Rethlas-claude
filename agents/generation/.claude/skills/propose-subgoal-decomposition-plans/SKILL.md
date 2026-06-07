@@ -57,7 +57,7 @@ Also append an `events` record summarizing the new plan set.
 - `memory_search`
 - `memory_append`
 - `branch_update`
-- `search_arxiv_theorems`
+- `search_theorem_index`
 
 ## Failure Logging
 

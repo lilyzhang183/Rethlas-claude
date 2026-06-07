@@ -40,7 +40,11 @@ prepare_references() {
     return
   fi
 
+  local manifest_entries=()
   local pdf_count=0
+  local extracted_at
+  extracted_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
   while IFS= read -r -d '' pdf; do
     pdf_count=$((pdf_count + 1))
     if ! command -v pdftotext >/dev/null 2>&1; then
@@ -51,13 +55,59 @@ prepare_references() {
     local rel_pdf="${pdf#"$abs_ref_dir"/}"
     local txt="$abs_ref_dir/.extracted/${rel_pdf%.pdf}.txt"
     mkdir -p "$(dirname "$txt")"
+    local extract_status="ok"
     if [[ ! -f "$txt" || "$pdf" -nt "$txt" ]]; then
-      pdftotext -layout "$pdf" "$txt"
+      if ! pdftotext -layout "$pdf" "$txt"; then
+        extract_status="extraction_failed"
+      fi
+    else
+      extract_status="cached"
     fi
+
+    local pdf_sha=""
+    local txt_sha=""
+    if command -v shasum >/dev/null 2>&1; then
+      pdf_sha="$(shasum -a 256 "$pdf" | awk '{print $1}')"
+      if [[ -f "$txt" ]]; then
+        txt_sha="$(shasum -a 256 "$txt" | awk '{print $1}')"
+      fi
+    fi
+
+    manifest_entries+=("{\"source_file\":\"$ref_dir/$rel_pdf\",\"source_sha256\":\"$pdf_sha\",\"text_file\":\"$ref_dir/.extracted/${rel_pdf%.pdf}.txt\",\"text_sha256\":\"$txt_sha\",\"extracted_at\":\"$extracted_at\",\"extractor\":\"pdftotext -layout\",\"status\":\"$extract_status\"}")
   done < <(find "$abs_ref_dir" -type f -iname '*.pdf' -not -path "$abs_ref_dir/.extracted/*" -print0)
 
+  # Also list plain-text reference files (.md / .tex / .txt at top level)
+  while IFS= read -r -d '' textref; do
+    local rel_text="${textref#"$abs_ref_dir"/}"
+    local text_sha=""
+    if command -v shasum >/dev/null 2>&1; then
+      text_sha="$(shasum -a 256 "$textref" | awk '{print $1}')"
+    fi
+    manifest_entries+=("{\"source_file\":\"$ref_dir/$rel_text\",\"source_sha256\":\"$text_sha\",\"text_file\":\"$ref_dir/$rel_text\",\"text_sha256\":\"$text_sha\",\"extracted_at\":\"$extracted_at\",\"extractor\":\"none\",\"status\":\"plain_text\"}")
+  done < <(find "$abs_ref_dir" -maxdepth 1 -type f \( -iname '*.md' -o -iname '*.tex' -o -iname '*.txt' \) -print0)
+
+  if [[ ${#manifest_entries[@]} -gt 0 ]]; then
+    local manifest_path="$abs_ref_dir/reference_manifest.json"
+    {
+      printf '['
+      local first=1
+      for entry in "${manifest_entries[@]}"; do
+        if [[ $first -eq 1 ]]; then
+          first=0
+        else
+          printf ','
+        fi
+        printf '\n  %s' "$entry"
+      done
+      printf '\n]\n'
+    } > "$manifest_path"
+    echo "Wrote reference manifest: $manifest_path"
+  fi
+
   if [[ $pdf_count -gt 0 ]]; then
-    ref_prompt="Use reference_dir=${ref_dir} if it exists. PDF references have been extracted to ${ref_dir}/.extracted; read those extracted .txt files instead of the PDFs."
+    ref_prompt="Use reference_dir=${ref_dir} if it exists. PDF references have been extracted to ${ref_dir}/.extracted; read those extracted .txt files instead of the PDFs. A reference_manifest.json at ${ref_dir}/reference_manifest.json maps each source to its extracted text with sha256 hashes; cite files by stable manifest IDs (source_file + source_sha256) in your proof references."
+  elif [[ ${#manifest_entries[@]} -gt 0 ]]; then
+    ref_prompt="Use reference_dir=${ref_dir} if it exists. A reference_manifest.json at ${ref_dir}/reference_manifest.json lists each available reference file with sha256 hashes; cite files by stable manifest IDs."
   fi
 }
 

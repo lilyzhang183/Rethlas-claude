@@ -289,7 +289,7 @@ The verifier returns three severity levels in its `verification_report`:
 
 Use these tools when relevant:
 
-- `search_arxiv_theorems`
+- `search_theorem_index`
 - `memory_init`
 - `memory_append` (stamp `agent_id`, `skill`, `branch_id`, `plan_id`, `attempt_id`, `parent_agent_id` whenever known)
 - `memory_query` (exact filters; use for control-flow gates)
@@ -298,9 +298,9 @@ Use these tools when relevant:
 - `verify_proof_service`
 - `write_partial_progress_report` (when any budget dimension in `meta.json` is exhausted)
 
-Always call `search_arxiv_theorems` for nontrivial subgoals and key claims to ground reasoning in related literature.
+Always call `search_theorem_index` for nontrivial subgoals and key claims to ground reasoning in related literature.
 Use Claude Code's built-in `WebSearch` tool early to gather background (terminology, standard lemmas, common techniques) and throughout when constructing examples/counterexamples or proving subgoals.
-Prefer `$search-math-results` to orchestrate this retrieval flow: use `search_arxiv_theorems` first, then fall back to the `WebSearch` tool when the theorem search is not useful.
+Prefer `$search-math-results` to orchestrate this retrieval flow: use `search_theorem_index` first, then fall back to the `WebSearch` tool when the theorem search is not useful.
 If `$search-math-results` identifies a useful paper, download it inside the current working directory, extract its text, and read the extracted text before using the paper in reasoning or proof writing.
 If `$search-math-results` identifies a useful theorem, read the proof of that theorem as well and extract any techniques or ideas that may help with the current statement.
 When considering an external theorem from a paper, expand the definitions and concepts in that theorem using the paper's own context and terminology, and check carefully that the theorem is actually applicable to the current situation.

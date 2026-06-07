@@ -145,7 +145,7 @@ Each `notation_dictionary` append is a single JSON record as shown above. The fl
 
 - `memory_append` (channel: `notation_dictionary`)
 - `memory_search` (channel: `notation_dictionary`)
-- `search_arxiv_theorems` when the source is an arXiv paper and the symbol's meaning needs context expansion
+- `search_theorem_index` when the source is an arXiv paper and the symbol's meaning needs context expansion
 - Claude Code's built-in `WebSearch` tool when the source is not on arXiv
 
 ## Failure Logging

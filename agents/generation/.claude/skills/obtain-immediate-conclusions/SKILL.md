@@ -52,7 +52,7 @@ Rules:
 
 - `memory_append`
 - `memory_search`
-- `search_arxiv_theorems` for nontrivial consequences
+- `search_theorem_index` for nontrivial consequences
 - Claude Code's built-in `WebSearch` tool for background definitions/terminology
 
 ## Failure Logging

@@ -61,7 +61,7 @@ Update the corresponding decomposition-plan record in `subgoals` to `screening`,
 - `memory_search`
 - `memory_append`
 - `branch_update`
-- `search_arxiv_theorems`
+- `search_theorem_index`
 
 ## Failure Logging
 

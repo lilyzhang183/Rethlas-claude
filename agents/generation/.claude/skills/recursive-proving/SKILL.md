@@ -58,7 +58,7 @@ Update `branch_states` with the recursive round status and per-plan outcomes.
 - `memory_search`
 - `memory_append`
 - `branch_update`
-- `search_arxiv_theorems`
+- `search_theorem_index`
 - Claude Code's `Agent` tool with `subagent_type=subgoal-prover` (one sub-agent per plan; issue multiple `Agent` calls in a single response to run them in parallel)
 
 ## Failure Logging

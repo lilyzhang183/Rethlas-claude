@@ -16,7 +16,7 @@ For each cited external theorem/lemma/definition:
 
 ## Procedure
 
-1. Query `search_arxiv_theorems` using the full referenced statement as `query`.
+1. Query `search_theorem_index` using the full referenced statement as `query`.
 2. Inspect returned results and compare theorem text directly to the referenced statement in reasoning.
 3. Expand the definitions and terminology appearing in the cited statement using the cited paper's context before deciding whether the theorem applies.
 4. Check whether the same words in the current proof mean the same thing as they do in the cited paper. In mathematics, identical words can carry different definitions in different contexts.
@@ -52,6 +52,6 @@ Append records to `reference_checks` like:
 
 ## Tools
 
-- `search_arxiv_theorems`
+- `search_theorem_index`
 - `memory_append`
 - Claude Code's built-in `WebSearch` tool

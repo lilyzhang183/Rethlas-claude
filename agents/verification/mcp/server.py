@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,7 +25,8 @@ MEMORY_ROOT = REPO_ROOT / "memory"
 RESULTS_ROOT = REPO_ROOT / "results"
 SCHEMA_PATH = REPO_ROOT / "schemas" / "verification_output.schema.json"
 
-THEOREM_SEARCH_URL = "https://leansearch.net/thm/search"
+THEOREM_SEARCH_URL = os.getenv("THEOREM_SEARCH_URL", "https://leansearch.net/thm/search")
+THEOREM_SEARCH_INDEX_NAME = os.getenv("THEOREM_SEARCH_INDEX_NAME", "leansearch")
 THEOREM_SEARCH_TASK = (
     "Given a math statement, retrieve useful references, such as theorems, "
     "lemmas, and definitions, that are useful for solving the given problem."
@@ -83,12 +85,20 @@ def _iter_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
                 yield payload
 
 
-def search_arxiv_theorems(
+def search_theorem_index(
     query: str,
     num_results: int = 10,
     endpoint: str = THEOREM_SEARCH_URL,
+    index_name: str = THEOREM_SEARCH_INDEX_NAME,
     timeout_seconds: int = 30,
 ) -> Dict[str, Any]:
+    """Query the configured theorem search index.
+
+    Despite the legacy field name `arxiv_id`, this is a theorem-search
+    endpoint (Lean / Mathlib by default at leansearch.net), not arXiv
+    full-text search. Each hit is tagged with `index_name` so the agent
+    knows the source confidence.
+    """
     if not query.strip():
         raise ValueError("query must be non-empty")
     if num_results <= 0:
@@ -106,16 +116,25 @@ def search_arxiv_theorems(
     if not isinstance(data, list):
         raise ValueError("The theorem endpoint must return a JSON list")
 
-    normalized: List[Dict[str, str]] = []
+    normalized: List[Dict[str, Any]] = []
     for item in data:
         if not isinstance(item, dict):
             continue
+        arxiv_id = str(item.get("arxiv_id", ""))
+        paper_url = (
+            f"https://arxiv.org/abs/{arxiv_id}" if arxiv_id and arxiv_id != "None" else ""
+        )
         normalized.append(
             {
                 "title": str(item.get("title", "")),
+                "statement_text": str(item.get("theorem", "")),
                 "theorem": str(item.get("theorem", "")),
-                "arxiv_id": str(item.get("arxiv_id", "")),
+                "index_name": index_name,
+                "arxiv_id": arxiv_id,
                 "theorem_id": str(item.get("theorem_id", "")),
+                "paper_url": paper_url,
+                "source_confidence": "indexed_lean_statement",
+                "context_text_path": "",
             }
         )
 
@@ -124,7 +143,14 @@ def search_arxiv_theorems(
         "count": len(normalized),
         "results": normalized,
         "endpoint": endpoint,
+        "index_name": index_name,
     }
+
+
+# Backwards-compatible alias retained so external callers using the old
+# name keep working. Prefer `search_theorem_index` in new code.
+def search_arxiv_theorems(*args: Any, **kwargs: Any) -> Dict[str, Any]:
+    return search_theorem_index(*args, **kwargs)
 
 
 def memory_init(run_id: str, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -334,9 +360,14 @@ def build_mcp_app() -> Optional[Any]:
 
     app = FastMCP("verification_agent")
 
+    @app.tool(name="search_theorem_index")
+    def _tool_search_theorem_index(query: str, num_results: int = 10) -> Dict[str, Any]:
+        return search_theorem_index(query=query, num_results=num_results)
+
     @app.tool(name="search_arxiv_theorems")
-    def _tool_search_arxiv_theorems(query: str, num_results: int = 10) -> Dict[str, Any]:
-        return search_arxiv_theorems(query=query, num_results=num_results)
+    def _tool_search_arxiv_theorems_legacy(query: str, num_results: int = 10) -> Dict[str, Any]:
+        # Legacy alias retained for backwards compatibility.
+        return search_theorem_index(query=query, num_results=num_results)
 
     @app.tool(name="memory_init")
     def _tool_memory_init(run_id: str, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

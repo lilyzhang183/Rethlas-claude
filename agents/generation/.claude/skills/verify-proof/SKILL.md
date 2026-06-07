@@ -74,7 +74,7 @@ If verification fails, revise `blueprint.md` directly and append to `failed_path
 - `memory_append`
 - `memory_search`
 - `branch_update`
-- Claude Code's built-in `WebSearch` tool and `search_arxiv_theorems` when the verifier identifies a missing lemma or gap
+- Claude Code's built-in `WebSearch` tool and `search_theorem_index` when the verifier identifies a missing lemma or gap
 
 ## Failure Logging
 

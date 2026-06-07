@@ -92,7 +92,7 @@ For each statement/subproof in the markdown, in textual order:
 
 When a statement or subproof cites a theorem/lemma/definition from an external paper:
 
-1. Query `search_arxiv_theorems` with the full referenced statement text.
+1. Query `search_theorem_index` with the full referenced statement text.
 2. Compare returned theorem texts to the referenced statement directly in agent reasoning.
 3. Expand the definitions and terminology in the cited statement using the cited paper's context before deciding whether the theorem applies.
 4. Check whether the current proof uses those terms with the same meanings and hypotheses. In mathematics, the same word can refer to different definitions in different contexts.
@@ -207,7 +207,7 @@ All findings carry one of three severities. The verdict rule depends only on the
 
 1. Verify the markdown proof in textual order.
 2. Include every critical error and every gap in the report.
-3. External-paper references must be checked via `search_arxiv_theorems` first, then Claude Code's built-in `WebSearch` tool.
+3. External-paper references must be checked via `search_theorem_index` first, then Claude Code's built-in `WebSearch` tool.
 4. Accept iff there are zero errors and zero gaps.
 5. Persist final JSON to `results/{run_id}/verification.json`.
 6. The five audit passes are mandatory and in the stated order. Skipping any pass, or running them out of order, is a control-flow error.

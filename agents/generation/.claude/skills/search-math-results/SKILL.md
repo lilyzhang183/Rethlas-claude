@@ -22,8 +22,8 @@ Read:
 
 ## Procedure
 
-1. Start with `search_arxiv_theorems`.
-2. When using `search_arxiv_theorems`, phrase the query as a complete mathematical statement whenever possible.
+1. Start with `search_theorem_index`.
+2. When using `search_theorem_index`, phrase the query as a complete mathematical statement whenever possible.
 3. Inspect the returned items and decide whether they are useful for the current need.
 4. If a useful theorem/example/counterexample is found and it comes from a paper, download that paper into the workspace, extract its text, and read the extracted text before relying on the result.
 5. If a useful theorem is found, do not stop at the statement alone. Read the proof of that theorem as well and extract any techniques, constructions, reductions, or proof patterns that may help with the current target statement.
@@ -56,7 +56,7 @@ Append a summary record to `events`:
   "event_type": "search_math_results",
   "query": "...",
   "search_intent": "theorem|construction|example|counterexample|background",
-  "primary_tool": "search_arxiv_theorems",
+  "primary_tool": "search_theorem_index",
   "fallback_used": false,
   "results_summary": ["..."],
   "useful_references": [
@@ -82,7 +82,7 @@ Append a summary record to `events`:
 
 ## MCP Tools
 
-- `search_arxiv_theorems`
+- `search_theorem_index`
 - `memory_append`
 - `memory_search`
 

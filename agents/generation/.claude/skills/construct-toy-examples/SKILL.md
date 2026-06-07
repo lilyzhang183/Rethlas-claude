@@ -46,7 +46,7 @@ Append to `toy_examples`:
 
 - `memory_append`
 - `memory_search`
-- `search_arxiv_theorems` for matching examples/known motifs
+- `search_theorem_index` for matching examples/known motifs
 - Claude Code's built-in `WebSearch` tool for known example families and standard constructions
 - use `$search-math-results` when broader retrieval is needed
 
