@@ -198,11 +198,11 @@ This section governs how every proof step is written into `blueprint.md`. It is 
 
 Every displayed claim in the proof must end with exactly one inline justification tag from this fixed set:
 
-- `[def: name]` — by a stated definition (must appear in `## Notation` or earlier in the proof).
+- `[def: D<i>]` — by a definition listed in the `## Definitions` block (e.g. `[def: D1]`, `[def: D7]`). The bare `[def: name]` form is **not** accepted; every definition use must name an indexed definition. Locally introduced definitions inside a single lemma are stated in that lemma's `## Context` block and tagged `[def: local <i>]`.
 - `[hyp: H<i>]` — by a named hypothesis from the `## Assumptions` block (e.g. `[hyp: H1]`, `[hyp: H2]`, `[hyp: local A]`). The bare `[hyp]` form (no identifier) is **not** accepted; every hypothesis use must name which hypothesis is being invoked.
-- `[calc N]` — by a numbered computation display labeled `(N)` above this line.
-- `[cite: paper_id, thm_id]` — by an external result. The full statement and source identifiers (paper_id, theorem_id, arXiv id) must appear nearby in the proof.
-- `[from L.X]` or `[from L.X, Eq.Y]` — by a previously proved local lemma/proposition X (optionally a specific equation Y inside it).
+- `[calc: E<n>]` — by a numbered computation display labeled `(E<n>)` above this line (e.g. `[calc: E7]`). The bare `[calc N]` form without the `E` prefix is accepted as a legacy form but new code should use `[calc: E<n>]`.
+- `[cite: paper_id, thm_id]` — by an external result. The full statement and source identifiers (paper_id, theorem_id, arXiv id) must appear nearby in the proof, AND a complete theorem-application table must accompany the citation (see `$align-with-source-notation`).
+- `[from: L<x>]` or `[from: L<x>.eq<y>]` or `[from: L<x>.claim<y>]` — by a previously proved local lemma/proposition X (optionally a specific equation `eq<y>` or claim `claim<y>` inside it). Use the colon form `[from: L4]` consistently. The legacy form `[from L.4]` is still accepted but disambiguates more poorly inside the proof-obligation graph.
 - `[wlog: reason]` — without loss of generality, with a one-clause reason.
 - `[ind: name]` — by the named induction hypothesis.
 - `[comp]` — by composition.
@@ -249,6 +249,44 @@ The blueprint must contain a `## Assumptions` block (alongside `## Notation`) li
 ```
 
 Justification tags use `[hyp: H<i>]` referencing these identifiers. Every assumption must be either invoked by at least one `[hyp: H<i>]` tag in the proof body or annotated `usage: "unused-by-design"` in `notation_dictionary` with a one-sentence reason.
+
+### Definitions section in the blueprint
+
+The blueprint must contain a `## Definitions` block (alongside `## Notation` and `## Assumptions`) listing every locally-introduced definition with an explicit identifier:
+
+```markdown
+## Definitions
+- D1: A morphism $f$ is **proper at $x$** iff every neighborhood of $x$ has a saturated preimage.
+- D2: The **leaf closure** of $x$ is $\overline{L_x}$, the closure of the leaf through $x$ in $M$.
+- D3: A foliation is **regular at $x$** iff its dimension is locally constant on a neighborhood of $x$.
+```
+
+Justification tags use `[def: D<i>]` referencing these identifiers. The bare `[def: name]` form is rejected — every definition use must name a numbered definition, so the proof-obligation graph can trace dependency precisely.
+
+### Local Context blocks per lemma
+
+Every lemma, proposition, and theorem must begin with a `## Context` block listing the active assumptions, definitions, notation entries, and local variables in scope at that proof:
+
+```markdown
+# Lemma L4: ...
+
+## Context
+- Active assumptions: H1, H2, H5.
+- Active definitions: D1, D2, D7.
+- Active notation: N1, N3, N9.
+- Local variables:
+  - $x \in M$.
+  - $U$ is an open neighborhood of $x$.
+  - $\pi: E \to B$ is the bundle map from D7.
+
+## Statement
+...
+
+## Proof
+...
+```
+
+The verifier (`$check-notation-consistency`, `$check-proof-obligation-graph`) uses these context blocks to detect **scope drift** — the failure mode where a proof starts with one neighborhood, later uses a smaller neighborhood, and silently forgets which properties survive shrinking. Every symbol used inside the lemma must be reachable through `## Notation`, the lemma's `## Context` local variables, or the Tier-3 standard whitelist.
 
 ### Display every nontrivial computation
 

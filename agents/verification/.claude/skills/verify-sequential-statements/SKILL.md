@@ -42,9 +42,14 @@ Do not split the proof with utility code. Read the markdown in order and use its
 
 Every displayed claim in the proof must end with exactly one inline justification tag drawn from the canonical taxonomy. Acceptable tag labels:
 
-`[def: name]`, `[hyp: H<i>]`, `[calc N]`, `[cite: paper_id, thm_id]`, `[from L.X]` / `[from L.X, Eq.Y]`, `[wlog: reason]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`.
+`[def: D<i>]`, `[hyp: H<i>]`, `[calc: E<n>]`, `[cite: paper_id, thm_id]`, `[from: L<x>]` / `[from: L<x>.eq<y>]` / `[from: L<x>.claim<y>]`, `[wlog: reason]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`.
 
-Note: the hypothesis tag is **`[hyp: H<i>]`** with an explicit hypothesis identifier (e.g. `[hyp: H1]`, `[hyp: H2]`, `[hyp: local A]`). The bare `[hyp]` (no identifier) is no longer accepted — it produced uninformative "unused assumption" checks. The proof must list its hypotheses by name in a `## Assumptions` block (alongside `## Notation`), and every `[hyp: H<i>]` tag must resolve to one of those listed assumptions.
+Note: definition, hypothesis, computation, and lemma-reference tags are **indexed** and resolve against blueprint structure:
+
+- `[hyp: H<i>]` must resolve to an entry in the proof's `## Assumptions` block. The bare `[hyp]` form is rejected.
+- `[def: D<i>]` must resolve to an entry in the proof's `## Definitions` block. The bare `[def: name]` form is rejected.
+- `[calc: E<n>]` must resolve to a numbered display labeled `(E<n>)`. The legacy bare `[calc N]` form (no `E` prefix) is accepted for backwards compatibility.
+- `[from: L<x>]` / `[from: L<x>.eq<y>]` must resolve to a previously proved lemma or one of its numbered sub-equations. The legacy `[from L.X]` form is accepted.
 
 For each displayed claim:
 
@@ -62,6 +67,21 @@ Read the `## Assumptions` block. For each listed hypothesis `H<i>`:
 - Otherwise → `gap` at location `## Assumptions, H<i>` with issue `"assumption listed but never invoked in any [hyp: H<i>] tag"`.
 
 If the problem statement names a hypothesis that is missing entirely from `## Assumptions`, record a `critical_error` at location `## Assumptions` with issue `"hypothesis from problem statement is not listed in ## Assumptions block"`.
+
+### Definitions-block + Context-block audit
+
+Read the `## Definitions` block. Confirm every `[def: D<i>]` tag in the proof resolves to a numbered entry in the block. Definitions declared but never used are `warning`s (cleanup); definitions used without a corresponding entry are `critical_error`s.
+
+Read each lemma/proposition/theorem's `## Context` block. Verify the listed Active assumptions (`H<i>` ids), Active definitions (`D<i>` ids), and Active notation (`N<i>` ids) are all in scope. The Local variables section enumerates symbols whose meaning is fixed only inside this proof.
+
+**Scope-drift audit (the central new check).** For each symbol used inside the lemma body, walk the lookup chain:
+
+1. Is it a local variable declared in this lemma's `## Context`? Pass.
+2. Is it a Tier-1 entry in `## Notation`? Pass.
+3. Is it a Tier-3 standard constant? Pass.
+4. Otherwise → `critical_error` at the use site with issue `"symbol used in lemma proof but not in this lemma's Local variables, ## Notation, or the standard whitelist; possible scope drift"`.
+
+The scope-drift check catches the high-priority failure mode where the lemma's `## Context` mentions a neighborhood $U$, the proof later quietly switches to a smaller neighborhood $V$, and silently uses properties (compactness, saturatedness) that survive only for one of them.
 
 ## Banned phrases (always trigger a critical error)
 

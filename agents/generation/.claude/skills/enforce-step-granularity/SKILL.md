@@ -11,9 +11,9 @@ Proof jumps are the leading cause of verifier-detected gaps. This skill forces e
 
 A transition from one displayed claim to the next must be exactly one of:
 
-1. **One named theorem/lemma application** — tagged `[cite: paper_id, thm_id]` or `[from L.X]` / `[from L.X, Eq.Y]` for a previously proved local lemma.
-2. **One definitional unfolding** — tagged `[def: name]`. The definition must be in `notation_dictionary` or stated above.
-3. **One displayed computation** — tagged `[calc N]` referring to a numbered display environment. Chained equalities $a = b = c = d$ are permitted *inside* one numbered display, but every `=` step carries its own inline tag.
+1. **One named theorem/lemma application** — tagged `[cite: paper_id, thm_id]` for an external result or `[from: L<x>]` / `[from: L<x>.eq<y>]` / `[from: L<x>.claim<y>]` for a previously proved local lemma. The colon form is preferred; legacy `[from L.X]` is still accepted.
+2. **One definitional unfolding** — tagged `[def: D<i>]` referencing a definition in the `## Definitions` block (e.g. `[def: D3]`). The bare `[def: name]` form is **not** accepted; every definition use must name an indexed definition so the proof-obligation graph can trace dependency precisely.
+3. **One displayed computation** — tagged `[calc: E<n>]` referring to a numbered display environment labeled `(E<n>)`. Chained equalities $a = b = c = d$ are permitted *inside* one numbered display, but every `=` step carries its own inline tag.
 4. **One hypothesis use** — tagged `[hyp: H<i>]` where `H<i>` is the identifier of the assumption listed in the proof's `## Assumptions` block (e.g. `[hyp: H1]`, `[hyp: H2]`, `[hyp: local A]`). The bare `[hyp]` form is not accepted; every hypothesis use must name *which* hypothesis is being invoked.
 5. **One induction step** — tagged `[ind: name]`. The induction hypothesis must be named and previously stated.
 6. **One composition / functoriality / naturality move** (category-style proofs) — tagged `[comp]`, `[functoriality]`, or `[naturality]`. The morphisms or functors involved must be named in the surrounding text.

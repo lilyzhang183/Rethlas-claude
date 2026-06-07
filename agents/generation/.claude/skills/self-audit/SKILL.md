@@ -32,6 +32,14 @@ For each symbol used anywhere in the blueprint, classify by lookup order: Tier-2
 - Tier-1 entry contradicted by usage in the proof → `critical_error`.
 - Local symbol leaking outside its lemma scope → `critical_error`.
 
+### Check 1b: Definitions block present and complete
+
+The blueprint must contain a `## Definitions` block listing every locally-introduced definition with an explicit `D<i>` identifier. Every `[def: D<i>]` tag in the proof must resolve to one of these entries; entries declared but never used are `warning`s; uses of `[def: name]` (bare, not indexed) are `critical_error`s.
+
+### Check 1c: Per-lemma Context blocks
+
+Every lemma, proposition, and theorem in the blueprint must begin with a `## Context` block listing the active assumptions (`H<i>` ids), active definitions (`D<i>` ids), active notation (`N<i>` ids), and local variables. A missing `## Context` block on any lemma is a `critical_error`. A `## Context` block that lists ids not present in the global blocks is a `critical_error`.
+
 ### Check 2: Assumptions block present and complete
 
 The blueprint must contain a `## Assumptions` block (alongside `## Notation`) listing every hypothesis from the problem statement with an explicit identifier:
@@ -52,9 +60,9 @@ The blueprint must contain a `## Assumptions` block (alongside `## Notation`) li
 
 Every displayed claim must end with exactly one tag from the canonical taxonomy:
 
-`[def: name]`, `[hyp: H<i>]`, `[calc N]`, `[cite: paper_id, thm_id]`, `[from L.X]` / `[from L.X, Eq.Y]`, `[wlog: reason]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`.
+`[def: D<i>]`, `[hyp: H<i>]`, `[calc: E<n>]`, `[cite: paper_id, thm_id]`, `[from: L<x>]` / `[from: L<x>.eq<y>]` / `[from: L<x>.claim<y>]`, `[wlog: reason]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`.
 
-The bare `[hyp]` form (no identifier) is **not** accepted; replace with `[hyp: H<i>]` referencing the `## Assumptions` block.
+Indexed tag forms are required: bare `[hyp]`, bare `[def: name]`, and bare `[calc N]` (no `E` prefix) are rejected. Tags must resolve to `## Assumptions` / `## Definitions` / numbered displays / previously-proved lemmas respectively.
 
 **Severity:**
 - Untagged displayed claim → `critical_error`.
