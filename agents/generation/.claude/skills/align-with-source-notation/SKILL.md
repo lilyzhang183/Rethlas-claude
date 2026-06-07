@@ -47,7 +47,29 @@ Treat glossary entries as authoritative throughout the proof. Do not silently ov
 When citing a theorem, lemma, or definition from a source paper:
 
 1. Copy the source's notation verbatim into the proof — exact symbols, exact subscripts, exact names.
-2. For every symbol appearing in the borrowed statement that was not already in `notation_dictionary`, append:
+2. **Write a complete theorem-application table immediately beside the `[cite: ...]` use site.** The table is mandatory; the verifier's `$check-referenced-statements` rejects the citation if any row is missing. Schema:
+
+   ```markdown
+   ### Source theorem used: <paper_id>, <Thm>
+
+   **Verbatim source statement.** "<copy from source>"
+
+   **Source terminology.**
+   - "<source term>" means <expanded definition in source's context>
+
+   **Application map.**
+   | Source symbol | Meaning in source | Local symbol | Local meaning | Verified match |
+   |---|---|---|---|---|
+   | ... | ... | ... | ... | yes |
+
+   **Hypotheses checklist.**
+   | Source hypothesis | Where proved/assumed locally |
+   |---|---|
+   | ... | H<i> / Lemma L<j> / Definition D<k> |
+   ```
+
+   The "Verified match" column must be `yes` for every application-map row, and every hypothesis-checklist row must point to a real local hypothesis, lemma, or definition. If any row would be `no` or `unknown`, the citation cannot be used and a different approach must be taken (either prove the gap, weaken the application, or find a different source).
+3. For every symbol appearing in the borrowed statement that was not already in `notation_dictionary`, append:
 
 ```json
 {

@@ -36,9 +36,10 @@ Use these skills in this order:
 1. `$verify-sequential-statements`
 2. `$check-proof-obligation-graph`
 3. `$check-notation-consistency`
-4. `$check-computational-replay`
-5. `$check-referenced-statements`
-6. `$synthesize-verification-report`
+4. `$check-terminology-consistency`
+5. `$check-computational-replay`
+6. `$check-referenced-statements`
+7. `$synthesize-verification-report`
 
 `$check-proof-obligation-graph` is the structural rigor backbone. It loads `proof_obligations.json` (supplied alongside the proof in the verification request) and validates the DAG: no cycles, no forward references, no self-dependence, no hidden dependencies missing from `depends_on`, and every node reachable from `MainThm` is proved or externally cited. If the graph is missing, unparseable, or violates any of these properties, the verdict is `wrong`.
 
@@ -196,6 +197,8 @@ All findings carry one of three severities. The verdict rule depends only on the
    - **Tier 2 (local)** — bound variables declared at their introduction site inside a single lemma proof. Audited for scope leakage (critical error if a local symbol is re-used outside its lemma) and conflicting redeclaration.
    - **Tier 3 (standard)** — whitelist of universal symbols (`\mathbb{N}`, `\mathbb{R}`, `id`, `\emptyset`, etc.) plus glossary `# Standard Constants` extensions. No audit; the verifier resolves from the whitelist.
 
+2b. **Terminology consistency** (`$check-terminology-consistency`) — operates at the level of WORDS and CONCEPTS, not symbols. Catches the failure mode where the proof uses the same word as the source but means a stronger or weaker thing (e.g. `proper` vs `s-proper`, `leaf` vs `leaf closure`, `Morita equivalent` vs `isomorphic`, `local linearization` vs `saturated linearization`). For every key term: extracts source-vs-local definitions, checks compatibility, flags silent drift. A high-priority watch list of domain-trap pairs is enforced.
+
 3. **Computational replay** (`$check-computational-replay`) — for every numbered computation display and every chain tagged `[calc N]`, re-derives the right side from the left side using only the stated justification, the notation dictionary, and previously verified steps. Classifies each step into a four-level taxonomy:
    - `mechanically_ok` — direct syntactic rewrite. No finding.
    - `human_math_ok` — valid by a standard algebraic manipulation consistent with the stated tag. No finding (warning if the tag is missing or misclassifies the manipulation).
@@ -215,4 +218,4 @@ All findings carry one of three severities. The verdict rule depends only on the
 3. External-paper references must be checked via `search_theorem_index` first, then Claude Code's built-in `WebSearch` tool.
 4. Accept iff there are zero errors and zero gaps.
 5. Persist final JSON to `results/{run_id}/verification.json`.
-6. The six audit passes are mandatory and in the stated order (sequential → graph → notation → replay → references → synthesis). Skipping any pass, or running them out of order, is a control-flow error.
+6. The seven audit passes are mandatory and in the stated order (sequential → graph → notation → terminology → replay → references → synthesis). Skipping any pass, or running them out of order, is a control-flow error.
