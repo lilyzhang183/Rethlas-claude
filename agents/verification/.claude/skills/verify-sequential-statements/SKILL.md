@@ -34,9 +34,34 @@ Do not split the proof with utility code. Read the markdown in order and use its
    - the assumption is truly redundant, or
    - the proof is silently omitting a necessary use of it and therefore has a gap or error.
 7. Classify findings:
-   - `critical_error`: logical contradiction, invalid theorem use, false implication.
-   - `gap`: missing derivation, vague justification, unsupported step, or suspiciously unused assumptions whose role is not justified.
+   - `critical_error`: logical contradiction, invalid theorem use, false implication, **untagged claim** (see §"Tagging discipline" below), **banned-phrase transition** (see §"Banned phrases" below).
+   - `gap`: missing derivation, vague justification, unsupported step, or suspiciously unused assumptions whose role is not justified. **Skipped derivations are mandatory gaps** — do not treat them as discretionary.
 8. Persist each checked item to `statement_checks` using `memory_append`.
+
+## Tagging discipline (mandatory check)
+
+Every displayed claim in the proof must end with exactly one inline justification tag drawn from the canonical taxonomy. Acceptable tag labels:
+
+`[def: name]`, `[hyp]`, `[calc N]`, `[cite: paper_id, thm_id]`, `[from L.X]` / `[from L.X, Eq.Y]`, `[wlog: reason]`, `[ind: name]`, `[comp]`, `[functoriality]`, `[naturality]`.
+
+For each displayed claim:
+
+1. **Untagged claim → critical error.** If a displayed claim has no inline tag from the taxonomy, record a critical error at that location with issue `"claim missing inline justification tag"`. This is not optional.
+2. **Tag uses an unknown label → critical error.** If a tag uses a label not in the taxonomy above, record a critical error with issue `"unrecognized justification tag <label>"`.
+3. **Tag fails to resolve → critical error.** `[from L.7]` when there is no Lemma 7; `[calc 3]` when there is no display (3); `[def: foo]` when `foo` is not in the proof's `## Notation` section or any prior definition. → critical error with issue `"justification tag does not resolve"`.
+4. **Tag does not justify the transition → critical error.** The cited lemma/definition/computation exists, but it does not actually entail the move from the previous line to this one. → critical error with issue `"tag resolves but does not justify the stated transition"`.
+
+## Banned phrases (always trigger a critical error)
+
+The following phrases, appearing inside the proof text without an immediately-following resolved tag, are critical errors — they signal an unstated transition:
+
+- "clearly", "obviously", "trivially"
+- "it follows that", "it is easy to see that" (without an immediately-following `[from ...]` or `[cite: ...]` tag on the same line)
+- "by symmetry" (without an immediately-following `[from ...]` tag naming the symmetry)
+- "by a standard argument", "as usual"
+- "we omit the details"
+
+Record one critical error per occurrence with issue `"banned phrase <phrase> indicates unstated transition"`.
 
 ## Output Contract
 
