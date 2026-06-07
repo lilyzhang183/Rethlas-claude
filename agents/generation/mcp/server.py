@@ -36,6 +36,7 @@ CHANNEL_FILES: Dict[str, str] = {
     "failed_paths": "failed_paths.jsonl",
     "verification_reports": "verification_reports.jsonl",
     "branch_states": "branch_states.jsonl",
+    "notation_dictionary": "notation_dictionary.jsonl",
     "events": "events.jsonl",
 }
 
